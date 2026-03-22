@@ -6,6 +6,10 @@ import { AcpConnection } from "./acp-connection.js";
 import { convertRequestToContentBlocks } from "./content-converter.js";
 import { ResponseCollector } from "./response-collector.js";
 
+function log(msg: string) {
+  console.log(`[acp] ${msg}`);
+}
+
 /**
  * Agent adapter that bridges ACP (Agent Client Protocol) agents
  * to the weixin-agent-sdk Agent interface.
@@ -33,6 +37,9 @@ export class AcpAgent implements Agent {
     }
 
     // Register a collector, send the prompt, then gather the response
+    const preview = request.text?.slice(0, 50) || (request.media ? `[${request.media.type}]` : "");
+    log(`prompt: "${preview}" (session=${sessionId})`);
+
     const collector = new ResponseCollector();
     this.connection.registerCollector(sessionId, collector);
     try {
@@ -41,7 +48,9 @@ export class AcpAgent implements Agent {
       this.connection.unregisterCollector(sessionId);
     }
 
-    return collector.toResponse();
+    const response = await collector.toResponse();
+    log(`response: ${response.text?.slice(0, 80) ?? "[no text]"}${response.media ? " +media" : ""}`);
+    return response;
   }
 
   private async getOrCreateSession(
@@ -51,10 +60,12 @@ export class AcpAgent implements Agent {
     const existing = this.sessions.get(conversationId);
     if (existing) return existing;
 
+    log(`creating new session for conversation=${conversationId}`);
     const res = await conn.newSession({
       cwd: this.options.cwd ?? process.cwd(),
       mcpServers: [],
     });
+    log(`session created: ${res.sessionId}`);
     this.sessions.set(conversationId, res.sessionId);
     return res.sessionId;
   }
