@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.16.0",
+    "cross-spawn": "^7.0.6",
     "weixin-agent-sdk": "workspace:*"
   },
   "scripts": {
@@ -33,6 +34,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.0.0",
     "tsdown": "^0.21.0",
     "tsx": "^4.0.0",
