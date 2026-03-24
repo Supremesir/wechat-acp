@@ -69,6 +69,7 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
         token,
         get_updates_buf: getUpdatesBuf,
         timeoutMs: nextTimeoutMs,
+        abortSignal,
       });
 
       if (resp.longpolling_timeout_ms != null && resp.longpolling_timeout_ms > 0) {

@@ -96,6 +96,7 @@ async function apiFetch(params: {
   token?: string;
   timeoutMs: number;
   label: string;
+  abortSignal?: AbortSignal;
 }): Promise<string> {
   const base = ensureTrailingSlash(params.baseUrl);
   const url = new URL(params.endpoint, base);
@@ -104,6 +105,11 @@ async function apiFetch(params: {
 
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), params.timeoutMs);
+
+  // Forward external abort signal to our controller
+  const onAbort = () => controller.abort();
+  params.abortSignal?.addEventListener("abort", onAbort, { once: true });
+
   try {
     const res = await fetch(url.toString(), {
       method: "POST",
@@ -121,6 +127,8 @@ async function apiFetch(params: {
   } catch (err) {
     clearTimeout(t);
     throw err;
+  } finally {
+    params.abortSignal?.removeEventListener("abort", onAbort);
   }
 }
 
@@ -135,6 +143,7 @@ export async function getUpdates(
     baseUrl: string;
     token?: string;
     timeoutMs?: number;
+    abortSignal?: AbortSignal;
   },
 ): Promise<GetUpdatesResp> {
   const timeout = params.timeoutMs ?? DEFAULT_LONG_POLL_TIMEOUT_MS;
@@ -149,6 +158,7 @@ export async function getUpdates(
       token: params.token,
       timeoutMs: timeout,
       label: "getUpdates",
+      abortSignal: params.abortSignal,
     });
     const resp: GetUpdatesResp = JSON.parse(rawText);
     return resp;
