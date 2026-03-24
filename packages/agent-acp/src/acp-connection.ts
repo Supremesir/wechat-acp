@@ -94,11 +94,13 @@ export class AcpConnection {
       },
       requestPermission: async (params) => {
         const firstOption = params.options[0];
-        log(`permission: auto-approved "${firstOption?.id ?? "allow"}"`);
+        log(
+          `permission: auto-approved "${firstOption?.name ?? "allow"}" (${firstOption?.optionId ?? "unknown"})`,
+        );
         return {
           outcome: {
             outcome: "selected" as const,
-            optionId: firstOption?.id ?? "allow",
+            optionId: firstOption?.optionId ?? "allow",
           },
         };
       },
