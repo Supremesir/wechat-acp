@@ -1,5 +1,6 @@
 import type { Agent } from "./agent/interface.js";
 import {
+  clearAllWeixinAccounts,
   DEFAULT_BASE_URL,
   listWeixinAccountIds,
   loadWeixinAccount,
@@ -89,6 +90,20 @@ export async function login(opts?: LoginOptions): Promise<string> {
 
   log("\n✅ 与微信连接成功！");
   return normalizedId;
+}
+
+/**
+ * Remove all stored WeChat account credentials.
+ */
+export function logout(opts?: { log?: (msg: string) => void }): void {
+  const log = opts?.log ?? console.log;
+  const ids = listWeixinAccountIds();
+  if (ids.length === 0) {
+    log("当前没有已登录的账号");
+    return;
+  }
+  clearAllWeixinAccounts();
+  log("✅ 已退出登录");
 }
 
 /**

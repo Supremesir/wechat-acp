@@ -13,7 +13,7 @@
  *   npx weixin-acp start -- node ./my-agent.js
  */
 
-import { isLoggedIn, login, start } from "weixin-agent-sdk";
+import { isLoggedIn, login, logout, start } from "weixin-agent-sdk";
 
 import { AcpAgent } from "./src/acp-agent.js";
 
@@ -57,6 +57,11 @@ async function main() {
     return;
   }
 
+  if (command === "logout") {
+    logout();
+    return;
+  }
+
   if (command === "start") {
     const ddIndex = process.argv.indexOf("--");
     if (ddIndex === -1 || ddIndex + 1 >= process.argv.length) {
@@ -80,6 +85,7 @@ async function main() {
 
 用法:
   npx weixin-acp login                          扫码登录微信
+  npx weixin-acp logout                         退出登录
   npx weixin-acp claude-code                     使用 Claude Code
   npx weixin-acp codex                           使用 Codex
   npx weixin-acp start -- <command> [args...]    使用自定义 agent

@@ -181,6 +181,19 @@ export function clearWeixinAccount(accountId: string): void {
   }
 }
 
+/** Remove all account data files and clear the account index. */
+export function clearAllWeixinAccounts(): void {
+  const ids = listIndexedWeixinAccountIds();
+  for (const id of ids) {
+    clearWeixinAccount(id);
+  }
+  try {
+    fs.writeFileSync(resolveAccountIndexPath(), "[]", "utf-8");
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Resolve the openclaw.json config file path.
  * Checks OPENCLAW_CONFIG env var, then state dir.
