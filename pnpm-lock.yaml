@@ -8,7 +8,7 @@ importers:
 
   .: {}
 
-  packages/agent-acp:
+  packages/weixin-acp:
     dependencies:
       '@agentclientprotocol/sdk':
         specifier: ^0.16.0

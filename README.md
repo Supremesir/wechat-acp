@@ -9,7 +9,7 @@
 ```
 packages/
   sdk/                  weixin-agent-sdk —— 微信桥接 SDK
-  agent-acp/            ACP (Agent Client Protocol) 适配器
+  weixin-acp/           ACP (Agent Client Protocol) 适配器
   example-openai/       基于 OpenAI 的示例
 ```
 
