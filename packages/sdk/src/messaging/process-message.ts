@@ -176,9 +176,11 @@ export async function processOneMessage(
     media,
   };
 
-  // --- Typing indicator (start) ---
+  // --- Typing indicator (start + periodic refresh) ---
   const to = full.from_user_id ?? "";
-  if (deps.typingTicket) {
+  let typingTimer: ReturnType<typeof setInterval> | undefined;
+  const startTyping = () => {
+    if (!deps.typingTicket) return;
     sendTyping({
       baseUrl: deps.baseUrl,
       token: deps.token,
@@ -188,6 +190,10 @@ export async function processOneMessage(
         status: TypingStatus.TYPING,
       },
     }).catch(() => {});
+  };
+  if (deps.typingTicket) {
+    startTyping();
+    typingTimer = setInterval(startTyping, 10_000);
   }
 
   // --- Call agent & send reply ---
@@ -231,6 +237,7 @@ export async function processOneMessage(
     });
   } finally {
     // --- Typing indicator (cancel) ---
+    if (typingTimer) clearInterval(typingTimer);
     if (deps.typingTicket) {
       sendTyping({
         baseUrl: deps.baseUrl,
