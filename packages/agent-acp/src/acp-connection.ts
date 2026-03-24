@@ -25,7 +25,11 @@ export class AcpConnection {
   private ready = false;
   private collectors = new Map<SessionId, ResponseCollector>();
 
-  constructor(private options: AcpAgentOptions) {}
+  private onExit?: () => void;
+
+  constructor(private options: AcpAgentOptions, onExit?: () => void) {
+    this.onExit = onExit;
+  }
 
   registerCollector(sessionId: SessionId, collector: ResponseCollector): void {
     this.collectors.set(sessionId, collector);
@@ -58,6 +62,7 @@ export class AcpConnection {
       this.ready = false;
       this.connection = null;
       this.process = null;
+      this.onExit?.();
     });
 
     const writable = Writable.toWeb(proc.stdin!) as WritableStream<Uint8Array>;

@@ -21,7 +21,10 @@ export class AcpAgent implements Agent {
 
   constructor(options: AcpAgentOptions) {
     this.options = options;
-    this.connection = new AcpConnection(options);
+    this.connection = new AcpConnection(options, () => {
+      log("subprocess exited, clearing session cache");
+      this.sessions.clear();
+    });
   }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
