@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0 (2026-03-24)
+
+### weixin-acp
+
+- **feat**: 启动 agent 时自动检测登录状态，未登录则自动触发扫码登录
+- **feat**: 新增 `logout` 命令，支持清除已保存的登录凭证
+- **fix**: 定期重发 typing 状态，防止超时
+- **fix**: 改进 ACP tool-call 日志的 fallback 链
+- **fix**: 修复 ACP 权限自动审批中的 optionId 字段
+
+### weixin-agent-sdk
+
+- **feat**: 新增 `isLoggedIn()` 函数，检查是否已登录
+- **feat**: 新增 `logout()` 函数，清除所有账号凭证
+
 ## 0.4.0 (2026-03-24)
 
 ### weixin-acp
