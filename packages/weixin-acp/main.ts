@@ -13,7 +13,7 @@
  *   npx weixin-acp start -- node ./my-agent.js
  */
 
-import { login, start } from "weixin-agent-sdk";
+import { isLoggedIn, login, start } from "weixin-agent-sdk";
 
 import { AcpAgent } from "./src/acp-agent.js";
 
@@ -25,7 +25,16 @@ const BUILTIN_AGENTS: Record<string, { command: string }> = {
 
 const command = process.argv[2];
 
-function startAgent(acpCommand: string, acpArgs: string[] = []) {
+async function ensureLoggedIn() {
+  if (!isLoggedIn()) {
+    console.log("未检测到登录信息，请先扫码登录微信\n");
+    await login();
+  }
+}
+
+async function startAgent(acpCommand: string, acpArgs: string[] = []) {
+  await ensureLoggedIn();
+
   const agent = new AcpAgent({ command: acpCommand, args: acpArgs });
 
   const ac = new AbortController();

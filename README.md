@@ -18,12 +18,6 @@ packages/
 [ACP (Agent Client Protocol)](https://agentclientprotocol.com/) 是一个开放的 Agent 通信协议。如果你已有兼容 ACP 的 agent，可以直接通过 [`weixin-acp`](https://www.npmjs.com/package/weixin-acp) 接入微信，无需编写任何代码。
 
 
-### 扫码登录
-
-```bash
-npx weixin-acp login
-```
-
 ### Claude Code
 
 ```bash

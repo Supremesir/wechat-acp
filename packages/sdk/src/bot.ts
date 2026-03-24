@@ -92,6 +92,16 @@ export async function login(opts?: LoginOptions): Promise<string> {
 }
 
 /**
+ * Check whether at least one WeChat account is logged in and configured.
+ */
+export function isLoggedIn(): boolean {
+  const ids = listWeixinAccountIds();
+  if (ids.length === 0) return false;
+  const account = resolveWeixinAccount(ids[0]);
+  return account.configured;
+}
+
+/**
  * Start the bot — long-polls for new messages and dispatches them to the agent.
  * Blocks until the abort signal fires or an unrecoverable error occurs.
  */
