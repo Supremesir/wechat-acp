@@ -26,6 +26,8 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.16.0",
+    "@zed-industries/claude-agent-acp": "^0.22.2",
+    "@zed-industries/codex-acp": "^0.10.0",
     "cross-spawn": "^7.0.6",
     "weixin-agent-sdk": "workspace:*"
   },

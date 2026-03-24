@@ -27,24 +27,18 @@ npx weixin-acp login
 ### Claude Code
 
 ```bash
-# 安装 claude-agent-acp
-npm install -g @zed-industries/claude-agent-acp
-
-# 启动 agent
-npx weixin-acp start -- claude-agent-acp
+npx weixin-acp claude-code
 ```
 
 ### Codex
 
 ```bash
-# 安装 codex-acp
-npm install -g @zed-industries/codex-acp
-
-# 启动 agent
-npx weixin-acp start -- codex-acp
+npx weixin-acp codex
 ```
 
-### kimi-cli
+### 其它 ACP Agent
+
+比如 kimi-cli：
 
 ```bash
 npx weixin-acp start -- kimi acp
