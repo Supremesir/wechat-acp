@@ -8,40 +8,6 @@ importers:
 
   .: {}
 
-  packages/weixin-acp:
-    dependencies:
-      '@agentclientprotocol/sdk':
-        specifier: ^0.16.0
-        version: 0.16.1(zod@4.3.6)
-      '@zed-industries/claude-agent-acp':
-        specifier: ^0.22.2
-        version: 0.22.2
-      '@zed-industries/codex-acp':
-        specifier: ^0.10.0
-        version: 0.10.0
-      cross-spawn:
-        specifier: ^7.0.6
-        version: 7.0.6
-      weixin-agent-sdk:
-        specifier: workspace:*
-        version: link:../sdk
-    devDependencies:
-      '@types/cross-spawn':
-        specifier: ^6.0.6
-        version: 6.0.6
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.15
-      tsdown:
-        specifier: ^0.21.0
-        version: 0.21.4(typescript@5.9.3)
-      tsx:
-        specifier: ^4.0.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.8.0
-        version: 5.9.3
-
   packages/example-openai:
     dependencies:
       openai:
@@ -74,15 +40,49 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/weixin-acp:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^0.17.0
+        version: 0.17.0(zod@4.3.6)
+      '@zed-industries/claude-agent-acp':
+        specifier: ^0.23.0
+        version: 0.23.0
+      '@zed-industries/codex-acp':
+        specifier: ^0.10.0
+        version: 0.10.0
+      cross-spawn:
+        specifier: ^7.0.6
+        version: 7.0.6
+      weixin-agent-sdk:
+        specifier: workspace:*
+        version: link:../sdk
+    devDependencies:
+      '@types/cross-spawn':
+        specifier: ^6.0.6
+        version: 6.0.6
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.15
+      tsdown:
+        specifier: ^0.21.0
+        version: 0.21.4(typescript@5.9.3)
+      tsx:
+        specifier: ^4.0.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
 packages:
 
-  '@agentclientprotocol/sdk@0.16.1':
-    resolution: {integrity: sha512-1ad+Sc/0sCtZGHthxxvgEUo5Wsbw16I+aF+YwdiLnPwkZG8KAGUEAPK6LM6Pf69lCyJPt1Aomk1d+8oE3C4ZEw==}
+  '@agentclientprotocol/sdk@0.17.0':
+    resolution: {integrity: sha512-inBMYAEd9t4E+ULZK2os9kmLG5jbPvMLbPvY71XDDem1YteW/uDwkahg6OwsGR3tvvgVhYbRJ9mJCp2VXqG4xQ==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  '@anthropic-ai/claude-agent-sdk@0.2.76':
-    resolution: {integrity: sha512-HZxvnT8ZWkzCnQygaYCA0dl8RSUzuVbxE1YG4ecy6vh4nQbTT36CxUxBy+QVdR12pPQluncC0mCOLhI2918Eaw==}
+  '@anthropic-ai/claude-agent-sdk@0.2.83':
+    resolution: {integrity: sha512-O8g56htGMxrwbjCbqUqRBMNC0O98B7SkPnfQC7vmo3w2DVnUrBj3qat/IBLB8SI4sjVSZHeJrcK7+ozsCzStSw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       zod: ^4.0.0
@@ -513,8 +513,8 @@ packages:
   '@types/node@22.19.15':
     resolution: {integrity: sha512-F0R/h2+dsy5wJAUe3tAU6oqa2qbWY5TpNfL/RGmo1y38hiyO1w3x2jPtt76wmuaJI4DQnOBu21cNXQ2STIUUWg==}
 
-  '@zed-industries/claude-agent-acp@0.22.2':
-    resolution: {integrity: sha512-GLiKxy5MBNS9UoiE1XaM9EHVxlEcvk0sXSMCnyDp9JNAQliynt0axZrhptTl5AWe6PXGjVh5hMFdPp+yulw2uQ==}
+  '@zed-industries/claude-agent-acp@0.23.0':
+    resolution: {integrity: sha512-Ng6Ht35u0vZA+rH/5fnFAKKKHTidKciuwAMDS/nYrOHnCh5/d7E3Xa2YFtNrDKYraZzAjwTXDRVqH3Zp5uarlA==}
     hasBin: true
 
   '@zed-industries/codex-acp-darwin-arm64@0.10.0':
@@ -917,11 +917,11 @@ packages:
 
 snapshots:
 
-  '@agentclientprotocol/sdk@0.16.1(zod@4.3.6)':
+  '@agentclientprotocol/sdk@0.17.0(zod@4.3.6)':
     dependencies:
       zod: 4.3.6
 
-  '@anthropic-ai/claude-agent-sdk@0.2.76(zod@4.3.6)':
+  '@anthropic-ai/claude-agent-sdk@0.2.83(zod@4.3.6)':
     dependencies:
       zod: 4.3.6
     optionalDependencies:
@@ -1215,10 +1215,10 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@zed-industries/claude-agent-acp@0.22.2':
+  '@zed-industries/claude-agent-acp@0.23.0':
     dependencies:
-      '@agentclientprotocol/sdk': 0.16.1(zod@4.3.6)
-      '@anthropic-ai/claude-agent-sdk': 0.2.76(zod@4.3.6)
+      '@agentclientprotocol/sdk': 0.17.0(zod@4.3.6)
+      '@anthropic-ai/claude-agent-sdk': 0.2.83(zod@4.3.6)
       zod: 4.3.6
 
   '@zed-industries/codex-acp-darwin-arm64@0.10.0':
