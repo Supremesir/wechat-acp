@@ -181,3 +181,13 @@ OPENAI_API_KEY=sk-xxx pnpm run start -w packages/example-openai
 - 断点续传：`get_updates_buf` 持久化到 `~/.openclaw/`，重启后从上次位置继续
 - 会话过期自动重连（errcode -14 触发 1 小时冷却后恢复）
 - Node.js >= 22
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=wong2%2Fweixin-agent-sdk&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=wong2/weixin-agent-sdk&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=wong2/weixin-agent-sdk&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=wong2/weixin-agent-sdk&type=date&legend=top-left" />
+ </picture>
+</a>
