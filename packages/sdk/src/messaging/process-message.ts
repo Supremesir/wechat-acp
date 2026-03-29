@@ -68,22 +68,25 @@ function extractTextBody(itemList?: MessageItem[]): string {
 function findMediaItem(itemList?: MessageItem[]): MessageItem | undefined {
   if (!itemList?.length) return undefined;
 
+  const hasDownloadableMedia = (m?: { encrypt_query_param?: string; full_url?: string }) =>
+    m?.encrypt_query_param || m?.full_url;
+
   // Direct media: IMAGE > VIDEO > FILE > VOICE (skip voice with transcription)
   const direct =
     itemList.find(
-      (i) => i.type === MessageItemType.IMAGE && i.image_item?.media?.encrypt_query_param,
+      (i) => i.type === MessageItemType.IMAGE && hasDownloadableMedia(i.image_item?.media),
     ) ??
     itemList.find(
-      (i) => i.type === MessageItemType.VIDEO && i.video_item?.media?.encrypt_query_param,
+      (i) => i.type === MessageItemType.VIDEO && hasDownloadableMedia(i.video_item?.media),
     ) ??
     itemList.find(
-      (i) => i.type === MessageItemType.FILE && i.file_item?.media?.encrypt_query_param,
+      (i) => i.type === MessageItemType.FILE && hasDownloadableMedia(i.file_item?.media),
     ) ??
     itemList.find(
       (i) =>
         i.type === MessageItemType.VOICE &&
-        i.voice_item?.media?.encrypt_query_param &&
-        !i.voice_item.text,
+        hasDownloadableMedia(i.voice_item?.media) &&
+        !i.voice_item?.text,
     );
   if (direct) return direct;
 

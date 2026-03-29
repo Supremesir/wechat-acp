@@ -60,9 +60,10 @@ export async function downloadAndDecryptBuffer(
   aesKeyBase64: string,
   cdnBaseUrl: string,
   label: string,
+  fullUrl?: string,
 ): Promise<Buffer> {
   const key = parseAesKey(aesKeyBase64, label);
-  const url = buildCdnDownloadUrl(encryptedQueryParam, cdnBaseUrl);
+  const url = fullUrl || buildCdnDownloadUrl(encryptedQueryParam, cdnBaseUrl);
   logger.debug(`${label}: fetching url=${url}`);
   const encrypted = await fetchCdnBytes(url, label);
   logger.debug(`${label}: downloaded ${encrypted.byteLength} bytes, decrypting`);
@@ -78,8 +79,9 @@ export async function downloadPlainCdnBuffer(
   encryptedQueryParam: string,
   cdnBaseUrl: string,
   label: string,
+  fullUrl?: string,
 ): Promise<Buffer> {
-  const url = buildCdnDownloadUrl(encryptedQueryParam, cdnBaseUrl);
+  const url = fullUrl || buildCdnDownloadUrl(encryptedQueryParam, cdnBaseUrl);
   logger.debug(`${label}: fetching url=${url}`);
   return fetchCdnBytes(url, label);
 }
