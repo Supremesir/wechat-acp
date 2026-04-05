@@ -44,11 +44,11 @@ npx weixin-acp start -- kimi acp
 
 ## 自定义 Agent
 
-SDK 只导出三样东西：
+SDK 主要导出三样东西：
 
 - **`Agent`** 接口 —— 实现它就能接入微信
 - **`login()`** —— 扫码登录
-- **`start(agent)`** —— 启动消息循环
+- **`start(agent)`** —— 启动消息循环，并返回可主动发消息的 `Bot`
 
 ### Agent 接口
 
@@ -90,7 +90,7 @@ const echo: Agent = {
 };
 
 await login();
-await start(echo);
+const bot = await start(echo);
 ```
 
 ### 完整示例（自己管理对话历史）
@@ -115,8 +115,51 @@ const myAgent: Agent = {
 };
 
 await login();
-await start(myAgent);
+const bot = await start(myAgent);
 ```
+
+### 主动发送消息
+
+`start()` 返回的 `Bot` 实例提供了 `sendMessage()`，可以在收到微信消息之外，主动给当前登录用户发送内容。
+
+```typescript
+import { login, start, type Agent } from "weixin-agent-sdk";
+
+const agent: Agent = {
+  async chat(req) {
+    if (req.text === "ping") {
+      return { text: "pong" };
+    }
+    return { text: `收到：${req.text}` };
+  },
+};
+
+await login();
+const bot = await start(agent);
+
+setInterval(() => {
+  void bot.sendMessage("定时提醒：记得查看最新状态");
+}, 60_000);
+```
+
+也可以主动发送完整的 `ChatResponse`，包括图片、视频或文件：
+
+```typescript
+await bot.sendMessage({
+  text: "这是最新报表",
+  media: {
+    type: "file",
+    url: "./reports/daily.pdf",
+    fileName: "daily.pdf",
+  },
+});
+```
+
+注意事项：
+
+- 主动发送依赖微信下发的 `context_token`
+- 需要在 `start()` 运行期间，至少先收到过当前账号的一条入站消息
+- `context_token` 有时效，可能是 24 小时；过期后需要再次收到新消息才能继续主动发送
 
 ### OpenAI 示例
 
@@ -165,6 +208,7 @@ OPENAI_API_KEY=sk-xxx pnpm run start -w packages/example-openai
 | 文件 | 返回 `{ media: { type: "file", url: "/path/to/doc.pdf" } }` |
 | 文本 + 媒体 | `text` 和 `media` 同时返回，文本作为附带说明发送 |
 | 远程图片 | `url` 填 HTTPS 链接，SDK 自动下载后上传到微信 CDN |
+| 主动发送 | 通过 `const bot = await start(agent)` 后调用 `bot.sendMessage(...)` |
 
 ## 内置斜杠命令
 
