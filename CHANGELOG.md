@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 (2026-04-05)
+
+### weixin-agent-sdk
+
+- **feat**: `start(agent)` 现在返回 `Bot` 实例，支持通过 `bot.sendMessage()` 主动向当前登录账号发送文本、图片、视频和文件
+- **fix**: 会话过期时给出更明确的重新登录提示
+- **docs**: 补充 `Bot.sendMessage()` 的使用说明和注意事项
+
 ## 0.5.0 (2026-03-24)
 
 ### weixin-acp
