@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 
 import type { Agent, ChatResponse } from "./agent/interface.js";
@@ -23,7 +24,7 @@ import { markdownToPlainText, sendMessageWeixin } from "./messaging/send.js";
 import { monitorWeixinProvider } from "./monitor/monitor.js";
 import { logger } from "./util/logger.js";
 
-const MEDIA_TEMP_DIR = "/tmp/weixin-agent/media";
+const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "weixin-agent/media");
 
 export type LoginOptions = {
   /** Override the API base URL. */

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import type { Agent, ChatRequest } from "../agent/interface.js";
@@ -17,7 +18,7 @@ import { sendWeixinMediaFile } from "./send-media.js";
 import { markdownToPlainText, sendMessageWeixin } from "./send.js";
 import { handleSlashCommand } from "./slash-commands.js";
 
-const MEDIA_TEMP_DIR = "/tmp/weixin-agent/media";
+const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "weixin-agent/media");
 
 /** Save a buffer to a temporary file, returning the file path. */
 async function saveMediaBuffer(
