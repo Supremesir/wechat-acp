@@ -25,9 +25,9 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.17.0",
     "@agentclientprotocol/claude-agent-acp": "^0.26.0",
-    "@zed-industries/codex-acp": "^0.10.0",
+    "@agentclientprotocol/sdk": "^0.18.2",
+    "@zed-industries/codex-acp": "^0.11.1",
     "cross-spawn": "^7.0.6",
     "weixin-agent-sdk": "workspace:*"
   },
@@ -41,7 +41,7 @@
   "devDependencies": {
     "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.0.0",
-    "tsdown": "^0.21.0",
+    "tsdown": "^0.21.7",
     "tsx": "^4.0.0",
     "typescript": "^5.8.0"
   }
