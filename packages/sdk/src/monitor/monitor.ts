@@ -158,6 +158,10 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("aborted"));
+      return;
+    }
     const t = setTimeout(resolve, ms);
     signal?.addEventListener(
       "abort",

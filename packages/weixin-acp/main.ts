@@ -33,22 +33,55 @@ async function ensureLoggedIn() {
 }
 
 async function startAgent(acpCommand: string, acpArgs: string[] = []) {
-  await ensureLoggedIn();
+  let userAborted = false;
 
-  const agent = new AcpAgent({ command: acpCommand, args: acpArgs });
+  process.on("SIGINT", () => { userAborted = true; });
+  process.on("SIGTERM", () => { userAborted = true; });
 
-  const ac = new AbortController();
-  process.on("SIGINT", () => {
-    console.log("\n正在停止...");
-    agent.dispose();
-    ac.abort();
-  });
-  process.on("SIGTERM", () => {
-    agent.dispose();
-    ac.abort();
-  });
+  while (!userAborted) {
+    await ensureLoggedIn();
 
-  return start(agent, { abortSignal: ac.signal });
+    const agent = new AcpAgent({
+      command: acpCommand,
+      args: acpArgs,
+      excludeMcpServers: ["relay-mcp"],
+    });
+    const ac = new AbortController();
+    let sessionExpired = false;
+
+    const onExit = () => {
+      console.log("\n正在停止...");
+      userAborted = true;
+      agent.dispose();
+      ac.abort();
+    };
+    process.on("SIGINT", onExit);
+    process.on("SIGTERM", onExit);
+
+    try {
+      await start(agent, {
+        abortSignal: ac.signal,
+        log: (msg) => {
+          console.log(msg);
+          if (!userAborted && msg.includes("session expired (errcode")) {
+            sessionExpired = true;
+            ac.abort();
+          }
+        },
+      });
+    } catch {
+      // AbortError — handled below
+    } finally {
+      agent.dispose();
+      process.removeListener("SIGINT", onExit);
+      process.removeListener("SIGTERM", onExit);
+    }
+
+    if (userAborted || !sessionExpired) break;
+
+    console.log("\n⚠️ 微信会话过期，正在重新登录...\n");
+    await login();
+  }
 }
 
 async function main() {

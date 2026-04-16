@@ -9,4 +9,6 @@ export type AcpAgentOptions = {
   cwd?: string;
   /** Prompt timeout in milliseconds (default: 120_000) */
   promptTimeoutMs?: number;
+  /** MCP server names to exclude when loading from ~/.cursor/mcp.json */
+  excludeMcpServers?: string[];
 };

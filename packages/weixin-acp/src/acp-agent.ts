@@ -1,5 +1,9 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import type { Agent, ChatRequest, ChatResponse } from "weixin-agent-sdk";
-import type { SessionId } from "@agentclientprotocol/sdk";
+import type { McpServer, SessionId } from "@agentclientprotocol/sdk";
 
 import type { AcpAgentOptions } from "./types.js";
 import { AcpConnection } from "./acp-connection.js";
@@ -11,6 +15,44 @@ function log(msg: string) {
 }
 
 /**
+ * Read MCP server configs from ~/.cursor/mcp.json and convert them
+ * to the ACP McpServerStdio format.
+ */
+function loadUserMcpServers(exclude?: string[]): McpServer[] {
+  const candidates = [
+    path.join(os.homedir(), ".cursor", "mcp.json"),
+    path.join(process.cwd(), ".cursor", "mcp.json"),
+  ];
+
+  const excludeSet = new Set(exclude ?? []);
+  const servers: McpServer[] = [];
+  const seen = new Set<string>();
+
+  for (const configPath of candidates) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
+      const entries = raw?.mcpServers ?? {};
+      for (const [name, cfg] of Object.entries<Record<string, unknown>>(entries)) {
+        if (seen.has(name) || excludeSet.has(name) || !cfg.command) continue;
+        seen.add(name);
+        servers.push({
+          name,
+          command: String(cfg.command),
+          args: (cfg.args as string[] | undefined) ?? [],
+          env: Object.entries((cfg.env as Record<string, string> | undefined) ?? {}).map(
+            ([k, v]) => ({ name: k, value: String(v) }),
+          ),
+        });
+      }
+    } catch {
+      // Config not found or unreadable — skip
+    }
+  }
+
+  return servers;
+}
+
+/**
  * Agent adapter that bridges ACP (Agent Client Protocol) agents
  * to the weixin-agent-sdk Agent interface.
  */
@@ -18,9 +60,14 @@ export class AcpAgent implements Agent {
   private connection: AcpConnection;
   private sessions = new Map<string, SessionId>();
   private options: AcpAgentOptions;
+  private mcpServers: McpServer[];
 
   constructor(options: AcpAgentOptions) {
     this.options = options;
+    this.mcpServers = loadUserMcpServers(options.excludeMcpServers);
+    if (this.mcpServers.length > 0) {
+      log(`loaded ${this.mcpServers.length} MCP server(s): ${this.mcpServers.map((s) => s.name).join(", ")}`);
+    }
     this.connection = new AcpConnection(options, () => {
       log("subprocess exited, clearing session cache");
       this.sessions.clear();
@@ -66,7 +113,7 @@ export class AcpAgent implements Agent {
     log(`creating new session for conversation=${conversationId}`);
     const res = await conn.newSession({
       cwd: this.options.cwd ?? process.cwd(),
-      mcpServers: [],
+      mcpServers: this.mcpServers,
     });
     log(`session created: ${res.sessionId}`);
     this.sessions.set(conversationId, res.sessionId);
