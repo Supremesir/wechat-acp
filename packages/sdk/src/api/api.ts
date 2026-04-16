@@ -100,7 +100,7 @@ function buildHeaders(opts: { token?: string; body: string }): Record<string, st
 export async function apiGetFetch(params: {
   baseUrl: string;
   endpoint: string;
-  timeoutMs: number;
+  timeoutMs?: number;
   label: string;
 }): Promise<string> {
   const base = ensureTrailingSlash(params.baseUrl);
@@ -109,14 +109,14 @@ export async function apiGetFetch(params: {
   logger.debug(`GET ${redactUrl(url.toString())}`);
 
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), params.timeoutMs);
+  const t = params.timeoutMs ? setTimeout(() => controller.abort(), params.timeoutMs) : undefined;
   try {
     const res = await fetch(url.toString(), {
       method: "GET",
       headers: hdrs,
       signal: controller.signal,
     });
-    clearTimeout(t);
+    if (t) clearTimeout(t);
     const rawText = await res.text();
     logger.debug(`${params.label} status=${res.status} raw=${redactBody(rawText)}`);
     if (!res.ok) {
@@ -124,7 +124,7 @@ export async function apiGetFetch(params: {
     }
     return rawText;
   } catch (err) {
-    clearTimeout(t);
+    if (t) clearTimeout(t);
     throw err;
   }
 }

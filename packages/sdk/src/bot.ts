@@ -20,7 +20,7 @@ import {
 import { downloadRemoteImageToTemp } from "./cdn/upload.js";
 import { getContextToken } from "./messaging/inbound.js";
 import { sendWeixinMediaFile } from "./messaging/send-media.js";
-import { markdownToPlainText, sendMessageWeixin } from "./messaging/send.js";
+import { filterMarkdown, sendMessageWeixin } from "./messaging/send.js";
 import { monitorWeixinProvider } from "./monitor/monitor.js";
 import { logger } from "./util/logger.js";
 
@@ -193,7 +193,7 @@ export class Bot {
       await sendWeixinMediaFile({
         filePath,
         to: this._userId,
-        text: response.text ? markdownToPlainText(response.text) : "",
+        text: response.text ? filterMarkdown(response.text) : "",
         opts: apiOpts,
         cdnBaseUrl: this._cdnBaseUrl,
       });
@@ -203,7 +203,7 @@ export class Bot {
     if (response.text) {
       await sendMessageWeixin({
         to: this._userId,
-        text: markdownToPlainText(response.text),
+        text: filterMarkdown(response.text),
         opts: apiOpts,
       });
       return;

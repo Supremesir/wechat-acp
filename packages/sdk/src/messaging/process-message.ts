@@ -15,7 +15,7 @@ import { logger } from "../util/logger.js";
 import { setContextToken, bodyFromItemList, isMediaItem } from "./inbound.js";
 import { sendWeixinErrorNotice } from "./error-notice.js";
 import { sendWeixinMediaFile } from "./send-media.js";
-import { markdownToPlainText, sendMessageWeixin } from "./send.js";
+import { filterMarkdown, sendMessageWeixin } from "./send.js";
 import { handleSlashCommand } from "./slash-commands.js";
 
 const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "weixin-agent/media");
@@ -218,14 +218,14 @@ export async function processOneMessage(
       await sendWeixinMediaFile({
         filePath,
         to,
-        text: response.text ? markdownToPlainText(response.text) : "",
+        text: response.text ? filterMarkdown(response.text) : "",
         opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
         cdnBaseUrl: deps.cdnBaseUrl,
       });
     } else if (response.text) {
       await sendMessageWeixin({
         to,
-        text: markdownToPlainText(response.text),
+        text: filterMarkdown(response.text),
         opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
       });
     }
