@@ -141,7 +141,7 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
 
         const cachedConfig = await configManager.getForUser(fromUserId, full.context_token);
 
-        await processOneMessage(full, {
+        const msgDeps = {
           accountId,
           agent,
           baseUrl,
@@ -151,7 +151,17 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
           log,
           errLog,
           followUpManager,
-        });
+        };
+
+        if (followUpManager) {
+          // Fire-and-forget: don't block the poll loop so getUpdates keeps
+          // running and follow-up messages can be delivered via tryDeliver.
+          processOneMessage(full, msgDeps).catch((err) => {
+            errLog(`[follow-up] processOneMessage error: ${String(err)}`);
+          });
+        } else {
+          await processOneMessage(full, msgDeps);
+        }
       }
     } catch (err) {
       if (abortSignal?.aborted) {
