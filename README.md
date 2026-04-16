@@ -1,8 +1,19 @@
 # weixin-agent-sdk
 
-> 本项目非微信官方项目，代码由 [@tencent-weixin/openclaw-weixin](https://npmx.dev/package/@tencent-weixin/openclaw-weixin) 改造而来，仅供学习交流使用。
+> 本项目基于 [@tencent-weixin/openclaw-weixin](https://npmx.dev/package/@tencent-weixin/openclaw-weixin) 改造，非微信官方项目，仅供学习交流使用。
 
 微信 AI Agent 桥接框架 —— 通过简单的 Agent 接口，将任意 AI 后端接入微信。
+
+## 相比上游的增强
+
+| 特性 | 说明 |
+|------|------|
+| 🖼️ **图片/视频/文件发送** | ACP 模式支持 Agent 向微信发送图片，三层提取机制（ACP 原生 → cursor/generate_image → 文本路径解析） |
+| 💬 **Relay 风格追问** | Agent 回复后自动等待 60 秒，用户在微信直接回复即可继续当前对话（同一 ACP session） |
+| 📝 **Markdown 部分支持** | 同步上游 `StreamingMarkdownFilter`，代码块、表格、加粗等格式不再被剥离 |
+| 🔄 **会话过期自动重登** | 检测 errcode -14 后自动弹出二维码重新登录，无需手动重启 |
+| 🔌 **MCP 服务器自动加载** | 从 `~/.cursor/mcp.json` 读取 MCP 配置传入 ACP session，支持排除指定 MCP |
+| ⏱️ **移除扫码登录超时** | 同步上游 v2.1.4 修复，网络慢时不再超时失败 |
 
 ## 项目结构
 
@@ -13,10 +24,9 @@ packages/
   example-openai/       基于 OpenAI 的示例
 ```
 
-## 通过 ACP 接入 Claude Code, Codex, kimi-cli 等 Agent
+## 通过 ACP 接入 Claude Code, Codex, Cursor CLI 等 Agent
 
 [ACP (Agent Client Protocol)](https://agentclientprotocol.com/) 是一个开放的 Agent 通信协议。如果你已有兼容 ACP 的 agent，可以直接通过 [`weixin-acp`](https://www.npmjs.com/package/weixin-acp) 接入微信，无需编写任何代码。
-
 
 ### Claude Code
 
@@ -30,6 +40,12 @@ npx weixin-acp claude-code
 npx weixin-acp codex
 ```
 
+### Cursor CLI (ACP 模式)
+
+```bash
+npx weixin-acp start -- agent acp
+```
+
 ### 其它 ACP Agent
 
 比如 kimi-cli：
@@ -41,6 +57,20 @@ npx weixin-acp start -- kimi acp
 `--` 后面的部分就是你的 ACP agent 启动命令，`weixin-acp` 会自动以子进程方式启动它，通过 JSON-RPC over stdio 进行通信。
 
 更多 ACP 兼容 agent 请参考 [ACP agent 列表](https://agentclientprotocol.com/get-started/agents)。
+
+### 本地开发运行
+
+如果你 clone 了本项目源码，可以使用快捷脚本：
+
+```bash
+pnpm install
+
+# 扫码登录
+pnpm run login
+
+# 启动 Cursor ACP 模式
+pnpm run cursor
+```
 
 ## 自定义 Agent
 
@@ -69,7 +99,7 @@ interface ChatRequest {
 }
 
 interface ChatResponse {
-  text?: string;                  // 回复文本（支持 markdown，发送前自动转纯文本）
+  text?: string;                  // 回复文本（支持 markdown，发送前由 StreamingMarkdownFilter 处理）
   media?: {                       // 回复媒体
     type: "image" | "video" | "file";
     url: string;                  // 本地路径或 HTTPS URL
@@ -210,12 +240,83 @@ OPENAI_API_KEY=sk-xxx pnpm run start -w packages/example-openai
 | 远程图片 | `url` 填 HTTPS 链接，SDK 自动下载后上传到微信 CDN |
 | 主动发送 | 通过 `const bot = await start(agent)` 后调用 `bot.sendMessage(...)` |
 
+## 💬 追问模式（Relay 风格多轮对话）
+
+灵感来自 [ide-relay-mcp](https://github.com/andeya/ide-relay-mcp)。Agent 每次回复后自动开启 **60 秒追问窗口**，用户在手机微信上直接回复即可继续当前对话。
+
+```
+你：帮我写一个快速排序
+AI：好的，这是实现...
+    ---
+    > 💬 追问模式已开启，60 秒内回复可继续当前对话
+
+你：能改成归并排序吗？                    ← 追问（同一 ACP session）
+AI：好的，改成归并排序...
+    ---
+    > 💬 追问模式已开启，60 秒内回复可继续当前对话
+
+                                          ← 超过 60 秒没回复
+系统：⏹️ 追问窗口已关闭
+
+你：写一个二分查找                        ← 新对话
+```
+
+### 工作原理
+
+```
+微信消息 → monitor 轮询 → FollowUpManager 检查
+                               │
+                    有等待中的追问窗口？
+                    ├─ YES → 投递给等待中的 processOneMessage（同一 ACP session）
+                    └─ NO  → 正常 processOneMessage → agent.chat()
+                                                         │
+                                                    回复后开启追问窗口
+                                                    等待 60 秒
+                                                    ├─ 用户回复 → 继续 chat()
+                                                    └─ 超时 → 关闭，结束对话
+```
+
+**与 Relay MCP 的区别**：不依赖 MCP 工具调用，直接在桥接层实现，对 Agent 完全透明。Monitor 轮询不被阻塞，追问消息通过 `FollowUpManager` 投递。
+
+### 配置
+
+追问超时默认 60 秒，可在 `packages/sdk/src/messaging/follow-up.ts` 中调整 `FOLLOW_UP_TIMEOUT_MS`。
+
+通过 `start()` 的 `enableFollowUp` 选项启用（`weixin-acp` 默认已启用）：
+
+```typescript
+await start(agent, { enableFollowUp: true });
+```
+
+## 🖼️ ACP 模式图片发送
+
+ACP 适配器支持 Agent 向微信发送图片/视频/文件，采用三层优先级提取：
+
+| 优先级 | 来源 | 说明 |
+|--------|------|------|
+| 1 | ACP 原生 image 内容块 | 标准 ACP 协议的图片输出 |
+| 2 | `cursor/generate_image` 通知 | Cursor 扩展方法（拦截 stdout） |
+| 3 | 文本路径提取 | 从 Agent 回复文本中解析图片路径 |
+
+### 文本路径格式
+
+Agent 在回复中使用以下格式，适配器会自动提取并作为图片发送：
+
+```
+[WEIXIN_IMAGE:/path/to/image.png]      推荐标记语法
+![描述](/path/to/image.png)            Markdown 图片语法
+/absolute/path/to/image.png            独立行绝对路径
+```
+
+视频和文件同理：`[WEIXIN_VIDEO:path]`、`[WEIXIN_FILE:path]`。
+
 ## 内置斜杠命令
 
 在微信中发送以下命令：
 
 - `/echo <消息>` —— 直接回复（不经过 Agent），附带通道耗时统计
 - `/toggle-debug` —— 开关 debug 模式，启用后每条回复追加全链路耗时
+- `/clear` —— 清除当前会话上下文
 
 ## 技术细节
 
@@ -223,7 +324,9 @@ OPENAI_API_KEY=sk-xxx pnpm run start -w packages/example-openai
 - 媒体文件通过微信 CDN 中转，**AES-128-ECB** 加密传输
 - 单账号模式：每次 `login` 覆盖之前的账号
 - 断点续传：`get_updates_buf` 持久化到 `~/.openclaw/`，重启后从上次位置继续
-- 会话过期自动重连（errcode -14 触发 1 小时冷却后恢复）
+- **会话过期自动重登**：检测 errcode -14 后自动弹出二维码重新扫码
+- **Markdown 部分支持**：`StreamingMarkdownFilter` 流式过滤，保留代码块/表格/加粗
+- **MCP 自动加载**：从 `~/.cursor/mcp.json` 读取 MCP 配置，支持 `excludeMcpServers` 排除
 - Node.js >= 22
 
 ## Star History
