@@ -111,7 +111,11 @@ async function sendResponseToWeixin(
   to: string,
   contextToken: string | undefined,
   deps: ProcessMessageDeps,
+  footer?: string,
 ): Promise<void> {
+  const appendFooter = (text: string) =>
+    footer ? `${text}\n\n---\n> ${footer}` : text;
+
   if (response.media) {
     let filePath: string;
     const mediaUrl = response.media.url;
@@ -126,14 +130,14 @@ async function sendResponseToWeixin(
     await sendWeixinMediaFile({
       filePath,
       to,
-      text: response.text ? filterMarkdown(response.text) : "",
+      text: response.text ? appendFooter(filterMarkdown(response.text)) : (footer ?? ""),
       opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
       cdnBaseUrl: deps.cdnBaseUrl,
     });
   } else if (response.text) {
     await sendMessageWeixin({
       to,
-      text: filterMarkdown(response.text),
+      text: appendFooter(filterMarkdown(response.text)),
       opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
     });
   }
@@ -249,17 +253,13 @@ export async function processOneMessage(
       const response = await deps.agent.chat(currentRequest);
 
       // --- Send response to WeChat ---
-      await sendResponseToWeixin(response, to, contextToken, deps);
+      if (!deps.followUpManager) {
+        await sendResponseToWeixin(response, to, contextToken, deps);
+        break;
+      }
 
-      // --- Follow-up loop ---
-      if (!deps.followUpManager) break;
-
-      // Send follow-up hint after the agent response
-      await sendMessageWeixin({
-        to,
-        text: FOLLOW_UP_HINT,
-        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
-      }).catch(() => {});
+      // Append follow-up hint to the agent reply
+      await sendResponseToWeixin(response, to, contextToken, deps, FOLLOW_UP_HINT);
 
       deps.log(`[follow-up] round ${followUpRound} — waiting for follow-up from ${to}`);
       const followUpMsg = await deps.followUpManager.waitForFollowUp(to);
