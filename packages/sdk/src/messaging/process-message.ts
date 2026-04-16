@@ -14,6 +14,8 @@ import { logger } from "../util/logger.js";
 
 import { setContextToken, bodyFromItemList, isMediaItem } from "./inbound.js";
 import { sendWeixinErrorNotice } from "./error-notice.js";
+import type { FollowUpManager } from "./follow-up.js";
+import { FOLLOW_UP_HINT, FOLLOW_UP_EXPIRED_HINT } from "./follow-up.js";
 import { sendWeixinMediaFile } from "./send-media.js";
 import { filterMarkdown, sendMessageWeixin } from "./send.js";
 import { handleSlashCommand } from "./slash-commands.js";
@@ -52,6 +54,8 @@ export type ProcessMessageDeps = {
   typingTicket?: string;
   log: (msg: string) => void;
   errLog: (msg: string) => void;
+  /** When set, enables the follow-up loop after each agent reply. */
+  followUpManager?: FollowUpManager;
 };
 
 /** Extract raw text from item_list (for slash command detection). */
@@ -101,9 +105,44 @@ function findMediaItem(itemList?: MessageItem[]): MessageItem | undefined {
   return refItem?.ref_msg?.message_item ?? undefined;
 }
 
+/** Send agent response (text and/or media) to a WeChat user. */
+async function sendResponseToWeixin(
+  response: import("../agent/interface.js").ChatResponse,
+  to: string,
+  contextToken: string | undefined,
+  deps: ProcessMessageDeps,
+): Promise<void> {
+  if (response.media) {
+    let filePath: string;
+    const mediaUrl = response.media.url;
+    if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
+      filePath = await downloadRemoteImageToTemp(
+        mediaUrl,
+        path.join(MEDIA_TEMP_DIR, "outbound"),
+      );
+    } else {
+      filePath = path.isAbsolute(mediaUrl) ? mediaUrl : path.resolve(mediaUrl);
+    }
+    await sendWeixinMediaFile({
+      filePath,
+      to,
+      text: response.text ? filterMarkdown(response.text) : "",
+      opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+      cdnBaseUrl: deps.cdnBaseUrl,
+    });
+  } else if (response.text) {
+    await sendMessageWeixin({
+      to,
+      text: filterMarkdown(response.text),
+      opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+    });
+  }
+}
+
 /**
  * Process a single inbound message:
  *   slash command check → download media → call agent → send reply.
+ *   When followUpManager is provided, enters follow-up loop after each reply.
  */
 export async function processOneMessage(
   full: WeixinMessage,
@@ -200,34 +239,91 @@ export async function processOneMessage(
     typingTimer = setInterval(startTyping, 10_000);
   }
 
-  // --- Call agent & send reply ---
+  // --- Call agent & send reply (with optional follow-up loop) ---
   try {
-    const response = await deps.agent.chat(request);
+    let currentRequest = request;
+    let followUpRound = 0;
 
-    if (response.media) {
-      let filePath: string;
-      const mediaUrl = response.media.url;
-      if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
-        filePath = await downloadRemoteImageToTemp(
-          mediaUrl,
-          path.join(MEDIA_TEMP_DIR, "outbound"),
-        );
-      } else {
-        filePath = path.isAbsolute(mediaUrl) ? mediaUrl : path.resolve(mediaUrl);
-      }
-      await sendWeixinMediaFile({
-        filePath,
-        to,
-        text: response.text ? filterMarkdown(response.text) : "",
-        opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
-        cdnBaseUrl: deps.cdnBaseUrl,
-      });
-    } else if (response.text) {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const response = await deps.agent.chat(currentRequest);
+
+      // --- Send response to WeChat ---
+      await sendResponseToWeixin(response, to, contextToken, deps);
+
+      // --- Follow-up loop ---
+      if (!deps.followUpManager) break;
+
+      // Send follow-up hint after the agent response
       await sendMessageWeixin({
         to,
-        text: filterMarkdown(response.text),
+        text: FOLLOW_UP_HINT,
         opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
-      });
+      }).catch(() => {});
+
+      deps.log(`[follow-up] round ${followUpRound} — waiting for follow-up from ${to}`);
+      const followUpMsg = await deps.followUpManager.waitForFollowUp(to);
+
+      if (!followUpMsg) {
+        deps.log(`[follow-up] timeout — closing follow-up window for ${to}`);
+        await sendMessageWeixin({
+          to,
+          text: FOLLOW_UP_EXPIRED_HINT,
+          opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+        }).catch(() => {});
+        break;
+      }
+
+      // Update context token if the follow-up message carries a new one
+      if (followUpMsg.context_token) {
+        setContextToken(deps.accountId, to, followUpMsg.context_token);
+      }
+
+      // Build follow-up request from the new message
+      let followUpMedia: ChatRequest["media"];
+      const followUpMediaItem = findMediaItem(followUpMsg.item_list);
+      if (followUpMediaItem) {
+        try {
+          const downloaded = await downloadMediaFromItem(followUpMediaItem, {
+            cdnBaseUrl: deps.cdnBaseUrl,
+            saveMedia: saveMediaBuffer,
+            log: deps.log,
+            errLog: deps.errLog,
+            label: "follow-up",
+          });
+          if (downloaded.decryptedPicPath) {
+            followUpMedia = { type: "image", filePath: downloaded.decryptedPicPath, mimeType: "image/*" };
+          } else if (downloaded.decryptedVideoPath) {
+            followUpMedia = { type: "video", filePath: downloaded.decryptedVideoPath, mimeType: "video/mp4" };
+          } else if (downloaded.decryptedFilePath) {
+            followUpMedia = {
+              type: "file",
+              filePath: downloaded.decryptedFilePath,
+              mimeType: downloaded.fileMediaType ?? "application/octet-stream",
+            };
+          } else if (downloaded.decryptedVoicePath) {
+            followUpMedia = {
+              type: "audio",
+              filePath: downloaded.decryptedVoicePath,
+              mimeType: downloaded.voiceMediaType ?? "audio/wav",
+            };
+          }
+        } catch (err) {
+          logger.error(`follow-up media download failed: ${String(err)}`);
+        }
+      }
+
+      currentRequest = {
+        conversationId: to,
+        text: bodyFromItemList(followUpMsg.item_list),
+        media: followUpMedia,
+      };
+
+      followUpRound++;
+      deps.log(`[follow-up] round ${followUpRound} — processing follow-up from ${to}`);
+
+      // Restart typing indicator for the new round
+      if (deps.typingTicket) startTyping();
     }
   } catch (err) {
     logger.error(`processOneMessage: agent or send failed: ${err instanceof Error ? err.stack ?? err.message : JSON.stringify(err)}`);
@@ -253,5 +349,7 @@ export async function processOneMessage(
         },
       }).catch(() => {});
     }
+    // Ensure follow-up window is closed on error/exit
+    deps.followUpManager?.cancel(to);
   }
 }

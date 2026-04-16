@@ -2,6 +2,7 @@ import type { Agent } from "../agent/interface.js";
 import { getUpdates } from "../api/api.js";
 import { WeixinConfigManager } from "../api/config-cache.js";
 import { SESSION_EXPIRED_ERRCODE, pauseSession, getRemainingPauseMs } from "../api/session-guard.js";
+import { FollowUpManager } from "../messaging/follow-up.js";
 import { processOneMessage } from "../messaging/process-message.js";
 import { getSyncBufFilePath, loadGetUpdatesBuf, saveGetUpdatesBuf } from "../storage/sync-buf.js";
 import { logger } from "../util/logger.js";
@@ -21,6 +22,8 @@ export type MonitorWeixinOpts = {
   abortSignal?: AbortSignal;
   longPollTimeoutMs?: number;
   log?: (msg: string) => void;
+  /** Enable Relay-style follow-up: after each agent reply, wait for user's next message. */
+  enableFollowUp?: boolean;
 };
 
 /**
@@ -46,6 +49,11 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
 
   log(`[weixin] monitor started (${baseUrl}, account=${accountId})`);
   aLog.info(`Monitor started: baseUrl=${baseUrl}`);
+
+  const followUpManager = opts.enableFollowUp ? new FollowUpManager() : undefined;
+  if (followUpManager) {
+    log(`[weixin] follow-up mode enabled (Relay-style multi-turn)`);
+  }
 
   const syncFilePath = getSyncBufFilePath(accountId);
   const previousGetUpdatesBuf = loadGetUpdatesBuf(syncFilePath);
@@ -123,6 +131,14 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
         );
 
         const fromUserId = full.from_user_id ?? "";
+
+        // If there's a pending follow-up window for this user, deliver the
+        // message there instead of starting a new processOneMessage cycle.
+        if (followUpManager?.tryDeliver(fromUserId, full)) {
+          log(`[follow-up] delivered message from ${fromUserId} to pending follow-up`);
+          continue;
+        }
+
         const cachedConfig = await configManager.getForUser(fromUserId, full.context_token);
 
         await processOneMessage(full, {
@@ -134,6 +150,7 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
           typingTicket: cachedConfig.typingTicket,
           log,
           errLog,
+          followUpManager,
         });
       }
     } catch (err) {
@@ -153,6 +170,7 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
       }
     }
   }
+  followUpManager?.dispose();
   aLog.info(`Monitor ended`);
 }
 

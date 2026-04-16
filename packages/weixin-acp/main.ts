@@ -61,6 +61,7 @@ async function startAgent(acpCommand: string, acpArgs: string[] = []) {
     try {
       await start(agent, {
         abortSignal: ac.signal,
+        enableFollowUp: true,
         log: (msg) => {
           console.log(msg);
           if (!userAborted && msg.includes("session expired (errcode")) {

@@ -40,6 +40,8 @@ export type StartOptions = {
   abortSignal?: AbortSignal;
   /** Log callback (defaults to console.log). */
   log?: (msg: string) => void;
+  /** Enable Relay-style follow-up: after each agent reply, wait for user's next message. */
+  enableFollowUp?: boolean;
 };
 
 /**
@@ -268,6 +270,7 @@ export async function start(agent: Agent, opts?: StartOptions): Promise<Bot> {
     agent,
     abortSignal: opts?.abortSignal,
     log,
+    enableFollowUp: opts?.enableFollowUp,
   });
 
   return bot;
