@@ -16,7 +16,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "wechat-feedback-server.cjs",
+    "mcp-timeout-hook.cjs"
   ],
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
