@@ -83,6 +83,36 @@ function disableMcpServers(cwd: string, names: string[]): void {
 }
 
 /**
+ * Ensure an MCP server entry exists in the global ~/.cursor/mcp.json.
+ * Creates or updates the entry so it includes the timeout hook.
+ */
+function ensureGlobalMcpEntry(name: string, entry: Record<string, unknown>): void {
+  const globalConfigPath = path.join(os.homedir(), ".cursor", "mcp.json");
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(fs.readFileSync(globalConfigPath, "utf8"));
+  } catch {
+    // start fresh
+  }
+  const servers = (raw.mcpServers ?? {}) as Record<string, unknown>;
+  const existing = servers[name] as Record<string, unknown> | undefined;
+
+  const needsUpdate =
+    !existing ||
+    existing.command !== entry.command ||
+    JSON.stringify(existing.args) !== JSON.stringify(entry.args) ||
+    JSON.stringify(existing.env) !== JSON.stringify(entry.env);
+
+  if (needsUpdate) {
+    servers[name] = { ...entry, disabled: false };
+    raw.mcpServers = servers;
+    fs.mkdirSync(path.dirname(globalConfigPath), { recursive: true });
+    fs.writeFileSync(globalConfigPath, JSON.stringify(raw, null, 2) + "\n");
+    log(`registered ${name} in global ~/.cursor/mcp.json`);
+  }
+}
+
+/**
  * Build the MCP server list for the ACP session.
  * Reads the global config, applies whitelist/blacklist, and passes env vars.
  */
@@ -138,12 +168,29 @@ export class AcpAgent implements Agent {
     this.feedbackBridge = options.feedbackBridge;
     const cwd = options.cwd ?? process.cwd();
 
+    const feedbackServerPath = path.resolve(__dirname, "..", "wechat-feedback-server.cjs");
+    const timeoutHookPath = path.resolve(__dirname, "..", "mcp-timeout-hook.cjs");
+    const feedbackPort = parseInt(options.env?.WECHAT_FEEDBACK_PORT || "19826", 10);
+
     // Disable excluded MCPs via project .cursor/mcp.json (prevents MCP process from starting)
     disableMcpServers(cwd, options.excludeMcpServers ?? []);
 
-    // Build the MCP server list from global config
     const excludeSet = new Set(options.excludeMcpServers ?? []);
     const onlySet = options.onlyMcpServers ? new Set(options.onlyMcpServers) : undefined;
+
+    if (options.feedbackBridge) {
+      ensureGlobalMcpEntry("wechat-feedback", {
+        command: "node",
+        args: ["--require", timeoutHookPath, feedbackServerPath],
+        env: {
+          WECHAT_FEEDBACK_PORT: String(feedbackPort),
+          MCP_REQUEST_TIMEOUT_MS: "600000",
+        },
+        timeout: 600,
+        autoApprove: ["interactive_feedback"],
+      });
+    }
+
     this.mcpServers = buildMcpServerList(excludeSet, onlySet);
     log(`MCP servers: ${this.mcpServers.map((s) => s.name).join(", ") || "(none)"}`);
 

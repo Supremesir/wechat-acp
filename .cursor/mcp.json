@@ -10,10 +10,13 @@
     "wechat-feedback": {
       "command": "node",
       "args": [
+        "--require",
+        "C:\\Code\\WorkSpace\\wechat-acp\\packages\\wechat-acp\\mcp-timeout-hook.cjs",
         "C:\\Code\\WorkSpace\\wechat-acp\\packages\\wechat-acp\\wechat-feedback-server.cjs"
       ],
       "env": {
-        "WECHAT_FEEDBACK_PORT": "19826"
+        "WECHAT_FEEDBACK_PORT": "19826",
+        "MCP_REQUEST_TIMEOUT_MS": "600000"
       },
       "timeout": 660,
       "autoApprove": [

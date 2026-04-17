@@ -3,7 +3,7 @@
   "scripts": {
     "typecheck": "pnpm -r run typecheck",
     "login": "tsx packages/wechat-acp/main.ts login",
-    "cursor": "tsx packages/wechat-acp/main.ts start --model claude-sonnet-4-5 -- agent acp"
+    "start": "tsx packages/wechat-acp/main.ts start -- agent acp"
   },
   "devDependencies": {
     "tsx": "^4.21.0"
