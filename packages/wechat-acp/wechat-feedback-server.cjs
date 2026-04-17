@@ -111,11 +111,13 @@ async function handleToolCall(msg) {
     const result = await postToIpc("/feedback", { summary });
     logErr(`IPC replied: ${JSON.stringify(result).slice(0, 200)}`);
 
+    const replyText = result.reply || "";
+
     const content = [
       {
         type: "text",
         text: JSON.stringify({
-          interactive_feedback: result.reply || "",
+          interactive_feedback: replyText || "__WAITING__",
         }),
       },
     ];
@@ -140,7 +142,7 @@ async function handleToolCall(msg) {
         {
           type: "text",
           text: JSON.stringify({
-            interactive_feedback: "",
+            interactive_feedback: "__WAITING__",
             error: String(err.message || err),
           }),
         },

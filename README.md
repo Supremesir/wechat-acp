@@ -70,7 +70,7 @@ pnpm install
 pnpm run login
 
 # 启动 Cursor ACP 模式
-pnpm run cursor
+pnpm start
 ```
 
 ## 自定义 Agent
@@ -295,6 +295,13 @@ AI：（收到图片 + 文字）
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### 超时防护（双重保险）
+
+| 层级 | 机制 | 说明 |
+|------|------|------|
+| 1 | `mcp-timeout-hook.cjs` | 预加载脚本 patch MCP SDK 的 60s 默认超时为 10 分钟 |
+| 2 | `__WAITING__` 轮询 | 若 Hook 未生效，MCP server 返回 `__WAITING__`，agent 自动重试 |
+
 ### 关键设计
 
 | 要点 | 说明 |
@@ -304,18 +311,20 @@ AI：（收到图片 + 文字）
 | **防重复发送** | IPC Server 追踪 `activeSendUsers`，Cursor 内部超时重试时不会重复发送摘要 |
 | **Race Condition 防护** | 先创建 pending entry 再发送摘要，防止用户快速回复时回复丢失 |
 | **Relay MCP 自动排除** | ACP 模式下自动排除 `relay-mcp`，避免与 `wechat-feedback` 冲突 |
+| **MCP 自动注册** | `ensureGlobalMcpEntry` 启动时自动将 `wechat-feedback` 注册到 `~/.cursor/mcp.json`，含 timeout hook |
 
 ### 配置
 
-MCP Feedback 需要在 `~/.cursor/mcp.json` 中配置 `wechat-feedback` 服务器（`wechat-acp` 已内置）：
+MCP Feedback 由 `wechat-acp` 启动时自动注册到 `~/.cursor/mcp.json`（无需手动配置）。等效配置如下：
 
 ```json
 {
   "mcpServers": {
     "wechat-feedback": {
       "command": "node",
-      "args": ["path/to/wechat-feedback-server.cjs"],
-      "env": { "WECHAT_FEEDBACK_PORT": "19826" },
+      "args": ["--require", "mcp-timeout-hook.cjs", "wechat-feedback-server.cjs"],
+      "env": { "WECHAT_FEEDBACK_PORT": "19826", "MCP_REQUEST_TIMEOUT_MS": "600000" },
+      "timeout": 600,
       "autoApprove": ["interactive_feedback"]
     }
   }

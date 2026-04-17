@@ -25,13 +25,15 @@ const FEEDBACK_SYSTEM_INSTRUCTION = `[SYSTEM] You are communicating with a user 
 After completing your response, you MUST call the "interactive_feedback" tool (from wechat-feedback MCP server).
 Pass your ENTIRE response text as the "summary" parameter — do NOT summarize or truncate.
 This tool sends your response to the WeChat user and waits for their reply.
-If the user replies, you will receive their message and can continue the conversation.
-If timeout (empty string returned), end the task normally.
+
+HANDLING THE RESULT:
+- If the result contains a user message, continue the conversation with that message.
+- If the result is "__WAITING__", call interactive_feedback AGAIN immediately with the SAME summary to continue waiting.
+- If the result is empty string "", the user chose not to reply — end the task normally.
+- The tool may take several minutes to return while waiting for the user. This is normal — do NOT treat slow return as an error.
+
 CRITICAL RULES:
 - Do NOT call relay_interactive_feedback — it does not exist here. Use interactive_feedback only.
-- Call interactive_feedback ONLY ONCE per response. Do NOT retry or call it again if it returns empty or errors.
-  An empty return means the user chose not to reply — end the task.
-- The tool may take several minutes to return while waiting for the user. This is normal — do NOT treat slow return as an error.
 - Keep responses concise — the user reads on a phone screen. Markdown is supported.`;
 
 type RawMcpEntry = {
@@ -70,6 +72,12 @@ function disableMcpServers(cwd: string, names: string[]): void {
       };
       changed = true;
     }
+  }
+
+  const fbEntry = existing["wechat-feedback"] as Record<string, unknown> | undefined;
+  if (fbEntry && fbEntry.disabled !== true) {
+    existing["wechat-feedback"] = { ...fbEntry, disabled: true };
+    changed = true;
   }
 
   if (changed) {
@@ -172,10 +180,13 @@ export class AcpAgent implements Agent {
     const timeoutHookPath = path.resolve(__dirname, "..", "mcp-timeout-hook.cjs");
     const feedbackPort = parseInt(options.env?.WECHAT_FEEDBACK_PORT || "19826", 10);
 
-    // Disable excluded MCPs via project .cursor/mcp.json (prevents MCP process from starting)
-    disableMcpServers(cwd, options.excludeMcpServers ?? []);
+    const disableList = [...(options.excludeMcpServers ?? [])];
+    for (const name of ["weixin-feedback", "wps-feedback"]) {
+      if (!disableList.includes(name)) disableList.push(name);
+    }
+    disableMcpServers(cwd, disableList);
 
-    const excludeSet = new Set(options.excludeMcpServers ?? []);
+    const excludeSet = new Set(disableList);
     const onlySet = options.onlyMcpServers ? new Set(options.onlyMcpServers) : undefined;
 
     if (options.feedbackBridge) {
