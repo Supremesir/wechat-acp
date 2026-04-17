@@ -45,6 +45,7 @@ alwaysApply: true
 
 ## 使用截图 MCP 的典型流程
 
-1. 调用截图工具保存到本地文件
-2. 在回复中使用 `[WEIXIN_IMAGE:保存路径]` 标记
-3. 桥接层自动提取图片并发送到微信
+1. 调用 `list_displays` 查看可用显示器
+2. 调用 `capture_screenshot` 截图（可指定 `monitor` 编号和 `outputPath` 保存路径）
+3. 在回复中使用 `[WEIXIN_IMAGE:保存路径]` 标记
+4. 桥接层自动提取图片并发送到微信
