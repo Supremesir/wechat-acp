@@ -2,7 +2,7 @@
   "name": "example-openai",
   "version": "0.1.0",
   "private": true,
-  "description": "WeChat + OpenAI example using weixin-agent-sdk",
+  "description": "WeChat + OpenAI example using wechat-sdk",
   "type": "module",
   "scripts": {
     "login": "tsx main.ts login",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "openai": "^4.0.0",
-    "weixin-agent-sdk": "workspace:*"
+    "wechat-sdk": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.0.0",

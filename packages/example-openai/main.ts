@@ -14,7 +14,7 @@
  *   SYSTEM_PROMPT       — Optional: system prompt for the agent
  */
 
-import { login, start } from "weixin-agent-sdk";
+import { login, start } from "wechat-sdk";
 
 import { OpenAIAgent } from "./src/openai-agent.js";
 

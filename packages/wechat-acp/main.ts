@@ -4,16 +4,16 @@
  * WeChat + ACP (Agent Client Protocol) adapter.
  *
  * Usage:
- *   npx weixin-acp login                          # QR-code login
- *   npx weixin-acp claude-code                     # Start with Claude Code
- *   npx weixin-acp codex                           # Start with Codex
- *   npx weixin-acp start -- <command> [args...]    # Start with custom agent
+ *   npx wechat-acp login                          # QR-code login
+ *   npx wechat-acp claude-code                     # Start with Claude Code
+ *   npx wechat-acp codex                           # Start with Codex
+ *   npx wechat-acp start -- <command> [args...]    # Start with custom agent
  *
  * Examples:
- *   npx weixin-acp start -- node ./my-agent.js
+ *   npx wechat-acp start -- node ./my-agent.js
  */
 
-import { isLoggedIn, login, logout, start } from "weixin-agent-sdk";
+import { isLoggedIn, login, logout, start } from "wechat-sdk";
 
 import { AcpAgent } from "./src/acp-agent.js";
 import { FeedbackIpcServer } from "./src/feedback-ipc.js";
@@ -63,7 +63,7 @@ async function startAgent(acpCommand: string, acpArgs: string[] = []) {
       args: acpArgs,
       excludeMcpServers: ["relay-mcp"],
       feedbackBridge: feedbackIpc,
-      env: { WEIXIN_FEEDBACK_PORT: String(feedbackPort) },
+      env: { WECHAT_FEEDBACK_PORT: String(feedbackPort) },
       model: modelId,
     });
     const ac = new AbortController();
@@ -122,7 +122,7 @@ async function main() {
     const ddIndex = process.argv.indexOf("--");
     if (ddIndex === -1 || ddIndex + 1 >= process.argv.length) {
       console.error("错误: 请在 -- 后指定 ACP agent 启动命令");
-      console.error("示例: npx weixin-acp start -- codex-acp");
+      console.error("示例: npx wechat-acp start -- codex-acp");
       process.exit(1);
     }
 
@@ -137,17 +137,17 @@ async function main() {
     return;
   }
 
-  console.log(`weixin-acp — 微信 + ACP 适配器
+  console.log(`wechat-acp — 微信 + ACP 适配器
 
 用法:
-  npx weixin-acp login                          扫码登录微信
-  npx weixin-acp logout                         退出登录
-  npx weixin-acp claude-code                     使用 Claude Code
-  npx weixin-acp codex                           使用 Codex
-  npx weixin-acp start -- <command> [args...]    使用自定义 agent
+  npx wechat-acp login                          扫码登录微信
+  npx wechat-acp logout                         退出登录
+  npx wechat-acp claude-code                     使用 Claude Code
+  npx wechat-acp codex                           使用 Codex
+  npx wechat-acp start -- <command> [args...]    使用自定义 agent
 
 示例:
-  npx weixin-acp start -- node ./my-agent.js`);
+  npx wechat-acp start -- node ./my-agent.js`);
 }
 
 main().catch((err) => {

@@ -26,7 +26,7 @@ import { filterMarkdown, sendMessageWeixin } from "./messaging/send.js";
 import { monitorWeixinProvider } from "./monitor/monitor.js";
 import { logger } from "./util/logger.js";
 
-const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "weixin-agent/media");
+const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "wechat-acp/media");
 
 export type LoginOptions = {
   /** Override the API base URL. */

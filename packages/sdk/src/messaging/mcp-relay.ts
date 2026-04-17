@@ -1,7 +1,7 @@
 /**
  * Interface for MCP-based follow-up relay.
  *
- * When an ACP agent has a `weixin_follow_up` MCP tool injected, the tool
+ * When an ACP agent has a `wechat_follow_up` MCP tool injected, the tool
  * communicates with the main process through this bridge. The bridge
  * handles message delivery between the MCP tool and the WeChat monitor.
  */

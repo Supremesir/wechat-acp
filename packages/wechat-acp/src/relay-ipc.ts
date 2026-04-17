@@ -1,7 +1,7 @@
 /**
  * Combined MCP + IPC HTTP server for WeChat follow-up.
  *
- * Runs in the main weixin-acp process. Cursor CLI connects to it via
+ * Runs in the main wechat-acp process. Cursor CLI connects to it via
  * Streamable HTTP transport (POST /mcp). This replaces the separate
  * weixin-relay-mcp-server.mjs subprocess approach.
  *
@@ -20,7 +20,7 @@ function log(msg: string) {
 }
 
 const TOOL_DEF = {
-  name: "weixin_follow_up",
+  name: "wechat_follow_up",
   description:
     "Send your response to the WeChat user and wait for their reply. " +
     "Use this tool whenever you want to ask the user a question, request " +
@@ -200,7 +200,7 @@ export class RelayIpcServer {
         sendResult({
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "weixin-relay", version: "0.2.0" },
+          serverInfo: { name: "wechat-relay", version: "0.2.0" },
         });
         break;
 

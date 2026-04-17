@@ -167,7 +167,7 @@ export class AcpConnection {
     log("initializing connection...");
     await conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
-      clientInfo: { name: "weixin-agent-sdk", version: "0.1.0" },
+      clientInfo: { name: "wechat-acp", version: "0.6.0" },
       clientCapabilities: {},
     });
     log("connection initialized");

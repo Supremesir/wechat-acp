@@ -7,13 +7,13 @@
       ],
       "disabled": true
     },
-    "weixin-feedback": {
+    "wechat-feedback": {
       "command": "node",
       "args": [
-        "C:\\Code\\WorkSpace\\weixin-agent-sdk\\packages\\weixin-acp\\weixin-feedback-server.cjs"
+        "C:\\Code\\WorkSpace\\wechat-acp\\packages\\wechat-acp\\wechat-feedback-server.cjs"
       ],
       "env": {
-        "WEIXIN_FEEDBACK_PORT": "19826"
+        "WECHAT_FEEDBACK_PORT": "19826"
       },
       "timeout": 660,
       "autoApprove": [

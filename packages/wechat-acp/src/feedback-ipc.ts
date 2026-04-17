@@ -1,10 +1,10 @@
 import http from "node:http";
 
-import type { FeedbackBridge, FeedbackMedia } from "weixin-agent-sdk";
+import type { FeedbackBridge, FeedbackMedia } from "wechat-sdk";
 
-const FEEDBACK_PORT = parseInt(process.env.WEIXIN_FEEDBACK_PORT || "19826", 10);
+const FEEDBACK_PORT = parseInt(process.env.WECHAT_FEEDBACK_PORT || "19826", 10);
 const FEEDBACK_TIMEOUT_MS = parseInt(
-  process.env.WEIXIN_FEEDBACK_TIMEOUT_MS || "600000",
+  process.env.WECHAT_FEEDBACK_TIMEOUT_MS || "600000",
   10,
 );
 

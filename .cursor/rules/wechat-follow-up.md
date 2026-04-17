@@ -1,5 +1,5 @@
 ---
-description: 微信 ACP 模式下的追问工具指引——使用 weixin-feedback MCP 的 interactive_feedback
+description: 微信 ACP 模式下的追问工具指引——使用 wechat-feedback MCP 的 interactive_feedback
 globs:
 alwaysApply: true
 ---
@@ -12,7 +12,7 @@ alwaysApply: true
 
 1. **禁止调用 `relay_interactive_feedback`**（来自 relay-mcp）。该工具会弹出 GUI 窗口，在微信场景下不可用且会导致错误。
 
-2. **必须使用 `interactive_feedback`**（来自 weixin-feedback MCP）。该工具会把你的输出发送到微信用户，并等待用户在微信中回复。
+2. **必须使用 `interactive_feedback`**（来自 wechat-feedback MCP）。该工具会把你的输出发送到微信用户，并等待用户在微信中回复。
 
 ## 使用方式
 

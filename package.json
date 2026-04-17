@@ -2,8 +2,8 @@
   "private": true,
   "scripts": {
     "typecheck": "pnpm -r run typecheck",
-    "login": "tsx packages/weixin-acp/main.ts login",
-    "cursor": "tsx packages/weixin-acp/main.ts start --model claude-sonnet-4-5 -- agent acp"
+    "login": "tsx packages/wechat-acp/main.ts login",
+    "cursor": "tsx packages/wechat-acp/main.ts start --model claude-sonnet-4-5 -- agent acp"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

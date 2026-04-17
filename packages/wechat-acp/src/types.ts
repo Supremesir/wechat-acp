@@ -1,4 +1,4 @@
-import type { FeedbackBridge } from "weixin-agent-sdk";
+import type { FeedbackBridge } from "wechat-sdk";
 
 export type AcpAgentOptions = {
   /** Command to launch the ACP agent, e.g. "npx" */
@@ -16,7 +16,7 @@ export type AcpAgentOptions = {
   /** When set, only include these MCP servers (whitelist). Takes priority over excludeMcpServers. */
   onlyMcpServers?: string[];
   /**
-   * MCP-based feedback bridge. When provided, the weixin-feedback MCP server
+   * MCP-based feedback bridge. When provided, the wechat-feedback MCP server
    * is registered in the project .cursor/mcp.json so that Cursor CLI auto-loads it.
    */
   feedbackBridge?: FeedbackBridge;

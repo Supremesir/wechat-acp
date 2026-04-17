@@ -21,7 +21,7 @@ import { sendWeixinMediaFile } from "./send-media.js";
 import { filterMarkdown, sendMessageWeixin } from "./send.js";
 import { handleSlashCommand } from "./slash-commands.js";
 
-const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "weixin-agent/media");
+const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "wechat-acp/media");
 
 /** Save a buffer to a temporary file, returning the file path. */
 export async function saveMediaBuffer(

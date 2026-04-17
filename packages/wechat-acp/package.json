@@ -1,11 +1,11 @@
 {
-  "name": "weixin-acp",
+  "name": "wechat-acp",
   "version": "0.6.0",
-  "description": "WeChat + ACP (Agent Client Protocol) adapter — connect any ACP agent to WeChat",
+  "description": "WeChat + ACP adapter — connect Cursor CLI / Claude Code / Codex to WeChat",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "weixin-acp": "dist/main.mjs"
+    "wechat-acp": "dist/main.mjs"
   },
   "main": "dist/index.mjs",
   "types": "dist/index.d.mts",
@@ -29,7 +29,7 @@
     "@agentclientprotocol/sdk": "^0.18.2",
     "@zed-industries/codex-acp": "^0.11.1",
     "cross-spawn": "^7.0.6",
-    "weixin-agent-sdk": "workspace:*"
+    "wechat-sdk": "workspace:*"
   },
   "scripts": {
     "build": "tsdown",

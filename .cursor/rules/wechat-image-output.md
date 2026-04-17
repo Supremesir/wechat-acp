@@ -15,14 +15,14 @@ alwaysApply: true
 在回复文本中使用以下标记，桥接层会自动提取并发送：
 
 ```
-[WEIXIN_IMAGE:/path/to/image.png]
-[WEIXIN_VIDEO:/path/to/video.mp4]
-[WEIXIN_FILE:/path/to/document.pdf]
+[WECHAT_IMAGE:/path/to/image.png]
+[WECHAT_VIDEO:/path/to/video.mp4]
+[WECHAT_FILE:/path/to/document.pdf]
 ```
 
 示例：
 > 已完成截图。
-> [WEIXIN_IMAGE:C:\Users\Fang\Desktop\Screenshots\screenshot.png]
+> [WECHAT_IMAGE:C:\Users\Fang\Desktop\Screenshots\screenshot.png]
 
 ### 方式二：使用 Markdown 图片语法
 
@@ -47,5 +47,5 @@ alwaysApply: true
 
 1. 调用 `list_displays` 查看可用显示器
 2. 调用 `capture_screenshot` 截图（可指定 `monitor` 编号和 `outputPath` 保存路径）
-3. 在回复中使用 `[WEIXIN_IMAGE:保存路径]` 标记
+3. 在回复中使用 `[WECHAT_IMAGE:保存路径]` 标记
 4. 桥接层自动提取图片并发送到微信

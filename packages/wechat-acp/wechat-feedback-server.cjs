@@ -5,8 +5,8 @@
  * MCP server for WeChat interactive feedback.
  *
  * Spawned as a subprocess by Cursor CLI. Communicates with the main process
- * (weixin-acp) via HTTP on localhost. The port is read from the
- * WEIXIN_FEEDBACK_PORT environment variable.
+ * (wechat-acp) via HTTP on localhost. The port is read from the
+ * WECHAT_FEEDBACK_PORT environment variable.
  *
  * Protocol: newline-delimited JSON-RPC over stdio (matching Cursor CLI's
  * MCP transport).
@@ -16,14 +16,14 @@ const fs = require("node:fs");
 const http = require("node:http");
 const readline = require("node:readline");
 
-const FEEDBACK_PORT = parseInt(process.env.WEIXIN_FEEDBACK_PORT || "19826", 10);
+const FEEDBACK_PORT = parseInt(process.env.WECHAT_FEEDBACK_PORT || "19826", 10);
 const FEEDBACK_TIMEOUT_MS = parseInt(
-  process.env.WEIXIN_FEEDBACK_TIMEOUT_MS || "600000",
+  process.env.WECHAT_FEEDBACK_TIMEOUT_MS || "600000",
   10,
 );
 
 function logErr(msg) {
-  process.stderr.write(`[weixin-feedback-mcp] ${msg}\n`);
+  process.stderr.write(`[wechat-feedback-mcp] ${msg}\n`);
 }
 
 logErr(`started, port=${FEEDBACK_PORT}, timeout=${FEEDBACK_TIMEOUT_MS}ms`);
@@ -98,7 +98,7 @@ async function handleToolCall(msg) {
           type: "text",
           text: JSON.stringify({
             interactive_feedback: "",
-            error: "WEIXIN_FEEDBACK_PORT not configured",
+            error: "WECHAT_FEEDBACK_PORT not configured",
           }),
         },
       ],
@@ -162,7 +162,7 @@ function handleMessage(msg) {
       sendResult(msg.id, {
         protocolVersion: "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "weixin-feedback-mcp", version: "1.0.0" },
+        serverInfo: { name: "wechat-feedback-mcp", version: "1.0.0" },
       });
       break;
 

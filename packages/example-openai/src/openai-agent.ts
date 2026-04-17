@@ -10,7 +10,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import OpenAI from "openai";
-import type { Agent, ChatRequest, ChatResponse } from "weixin-agent-sdk";
+import type { Agent, ChatRequest, ChatResponse } from "wechat-sdk";
 
 export type OpenAIAgentOptions = {
   apiKey: string;

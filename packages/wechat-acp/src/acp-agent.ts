@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Agent, ChatRequest, ChatResponse, FeedbackBridge } from "weixin-agent-sdk";
+import type { Agent, ChatRequest, ChatResponse, FeedbackBridge } from "wechat-sdk";
 import type { McpServer, SessionId } from "@agentclientprotocol/sdk";
 
 import type { AcpAgentOptions } from "./types.js";
@@ -22,7 +22,7 @@ function log(msg: string) {
  * Tells the agent to call interactive_feedback instead of replying directly.
  */
 const FEEDBACK_SYSTEM_INSTRUCTION = `[SYSTEM] You are communicating with a user through WeChat (not an IDE).
-After completing your response, you MUST call the "interactive_feedback" tool (from weixin-feedback MCP server).
+After completing your response, you MUST call the "interactive_feedback" tool (from wechat-feedback MCP server).
 Pass your ENTIRE response text as the "summary" parameter — do NOT summarize or truncate.
 This tool sends your response to the WeChat user and waits for their reply.
 If the user replies, you will receive their message and can continue the conversation.
@@ -124,7 +124,7 @@ function buildMcpServerList(
 
 /**
  * Agent adapter that bridges ACP (Agent Client Protocol) agents
- * to the weixin-agent-sdk Agent interface.
+ * to the wechat-sdk Agent interface.
  */
 export class AcpAgent implements Agent {
   private connection: AcpConnection;
@@ -166,7 +166,7 @@ export class AcpAgent implements Agent {
     }
 
     // When feedback bridge is active, inject instructions so the agent knows
-    // to call interactive_feedback (from weixin-feedback MCP) after responding.
+    // to call interactive_feedback (from wechat-feedback MCP) after responding.
     // The agent won't know about this tool otherwise — project rules may not
     // load in ACP subprocess mode.
     if (this.feedbackBridge) {

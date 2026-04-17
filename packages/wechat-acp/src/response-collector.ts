@@ -3,10 +3,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { ChatResponse } from "weixin-agent-sdk";
+import type { ChatResponse } from "wechat-sdk";
 import type { SessionNotification } from "@agentclientprotocol/sdk";
 
-const ACP_MEDIA_OUT_DIR = path.join(os.tmpdir(), "weixin-agent/media/acp-out");
+const ACP_MEDIA_OUT_DIR = path.join(os.tmpdir(), "wechat-acp/media/out");
 
 const IMAGE_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".tiff", ".tif", ".ico",
@@ -32,8 +32,8 @@ function extractMediaPaths(text: string): { path: string; type: "image" | "video
     }
   };
 
-  // [WEIXIN_IMAGE:path], [WEIXIN_VIDEO:path], [WEIXIN_FILE:path]
-  const markerRe = /\[WEIXIN_(IMAGE|VIDEO|FILE):([^\]]+)\]/g;
+  // [WECHAT_IMAGE:path], [WECHAT_VIDEO:path], [WECHAT_FILE:path] (also legacy WEIXIN_ prefix)
+  const markerRe = /\[(?:WECHAT|WEIXIN)_(IMAGE|VIDEO|FILE):([^\]]+)\]/g;
   for (const m of text.matchAll(markerRe)) {
     const kind = m[1].toLowerCase() as "image" | "video" | "file";
     add(m[2].trim(), kind);
@@ -70,8 +70,7 @@ function extractMediaPaths(text: string): { path: string; type: "image" | "video
  * sees clean prose instead of raw paths.
  */
 function stripMediaMarkers(text: string, extractedPath: string): string {
-  // Strip [WEIXIN_*:path] markers
-  text = text.replace(/\[WEIXIN_(?:IMAGE|VIDEO|FILE):[^\]]+\]\s*/g, "");
+  text = text.replace(/\[(?:WECHAT|WEIXIN)_(?:IMAGE|VIDEO|FILE):[^\]]+\]\s*/g, "");
   // Strip markdown image refs pointing to extracted path
   const escaped = extractedPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   text = text.replace(new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)\\s*`, "g"), "");
