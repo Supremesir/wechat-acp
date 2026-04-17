@@ -12,6 +12,11 @@
  * instead of starting a new agent cycle.
  */
 
+export type FeedbackMedia = {
+  filePath: string;
+  mimeType: string;
+};
+
 export interface FeedbackBridge {
   /** Register which user is currently being served by agent.chat(). */
   setActiveUser(userId: string): void;
@@ -19,10 +24,10 @@ export interface FeedbackBridge {
   clearActiveUser(userId: string): void;
 
   /**
-   * Deliver a user's reply text to a pending feedback wait.
+   * Deliver a user's reply to a pending feedback wait.
    * Returns `true` if a pending request consumed the message.
    */
-  deliverReply(userId: string, text: string): boolean;
+  deliverReply(userId: string, text: string, media?: FeedbackMedia): boolean;
 
   /** Whether feedback was used during the last agent.chat() for this conversation. */
   wasFeedbackUsed(conversationId: string): boolean;

@@ -12,6 +12,7 @@
  * MCP transport).
  */
 
+const fs = require("node:fs");
 const http = require("node:http");
 const readline = require("node:readline");
 
@@ -109,16 +110,29 @@ async function handleToolCall(msg) {
     logErr(`posting to IPC http://127.0.0.1:${FEEDBACK_PORT}/feedback ...`);
     const result = await postToIpc("/feedback", { summary });
     logErr(`IPC replied: ${JSON.stringify(result).slice(0, 200)}`);
-    sendResult(msg.id, {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            interactive_feedback: result.reply || "",
-          }),
-        },
-      ],
-    });
+
+    const content = [
+      {
+        type: "text",
+        text: JSON.stringify({
+          interactive_feedback: result.reply || "",
+        }),
+      },
+    ];
+
+    if (result.media && result.media.filePath) {
+      try {
+        const fileData = fs.readFileSync(result.media.filePath);
+        const base64 = fileData.toString("base64");
+        const mimeType = result.media.mimeType || "image/png";
+        content.push({ type: "image", data: base64, mimeType });
+        logErr(`attached media: ${result.media.filePath} (${mimeType}, ${fileData.length} bytes)`);
+      } catch (mediaErr) {
+        logErr(`failed to read media file: ${mediaErr.message || mediaErr}`);
+      }
+    }
+
+    sendResult(msg.id, { content });
   } catch (err) {
     logErr(`IPC error: ${err.message || err}`);
     sendResult(msg.id, {

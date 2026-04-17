@@ -27,13 +27,18 @@ Pass your ENTIRE response text as the "summary" parameter — do NOT summarize o
 This tool sends your response to the WeChat user and waits for their reply.
 If the user replies, you will receive their message and can continue the conversation.
 If timeout (empty string returned), end the task normally.
-IMPORTANT: Do NOT call relay_interactive_feedback — it does not exist here. Use interactive_feedback only.
-Keep responses concise — the user reads on a phone screen. Markdown is supported.`;
+CRITICAL RULES:
+- Do NOT call relay_interactive_feedback — it does not exist here. Use interactive_feedback only.
+- Call interactive_feedback ONLY ONCE per response. Do NOT retry or call it again if it returns empty or errors.
+  An empty return means the user chose not to reply — end the task.
+- The tool may take several minutes to return while waiting for the user. This is normal — do NOT treat slow return as an error.
+- Keep responses concise — the user reads on a phone screen. Markdown is supported.`;
 
 type RawMcpEntry = {
   command?: string;
   args?: string[];
   disabled?: boolean;
+  env?: Record<string, string>;
 };
 
 /**
@@ -79,10 +84,12 @@ function disableMcpServers(cwd: string, names: string[]): void {
 
 /**
  * Build the MCP server list for the ACP session.
- * Reads the global config and excludes disabled/unwanted servers.
- * weixin-feedback should already be in the global config (static setup).
+ * Reads the global config, applies whitelist/blacklist, and passes env vars.
  */
-function buildMcpServerList(excludeNames: Set<string>): McpServer[] {
+function buildMcpServerList(
+  excludeNames: Set<string>,
+  onlyNames?: Set<string>,
+): McpServer[] {
   const globalConfigPath = path.join(os.homedir(), ".cursor", "mcp.json");
   let rawServers: Record<string, RawMcpEntry> = {};
   try {
@@ -94,14 +101,21 @@ function buildMcpServerList(excludeNames: Set<string>): McpServer[] {
 
   const servers: McpServer[] = [];
   for (const [name, entry] of Object.entries(rawServers)) {
+    if (onlyNames && !onlyNames.has(name)) continue;
     if (excludeNames.has(name)) continue;
     if (entry.disabled) continue;
     if (!entry.command) continue;
+
+    const env = Object.entries(entry.env ?? {}).map(([k, v]) => ({
+      name: k,
+      value: v,
+    }));
+
     servers.push({
       name,
       command: entry.command,
       args: entry.args ?? [],
-      env: [],
+      env,
     });
   }
 
@@ -127,9 +141,10 @@ export class AcpAgent implements Agent {
     // Disable excluded MCPs via project .cursor/mcp.json (prevents MCP process from starting)
     disableMcpServers(cwd, options.excludeMcpServers ?? []);
 
-    // Build the MCP server list from global config, excluding unwanted ones
+    // Build the MCP server list from global config
     const excludeSet = new Set(options.excludeMcpServers ?? []);
-    this.mcpServers = buildMcpServerList(excludeSet);
+    const onlySet = options.onlyMcpServers ? new Set(options.onlyMcpServers) : undefined;
+    this.mcpServers = buildMcpServerList(excludeSet, onlySet);
     log(`MCP servers: ${this.mcpServers.map((s) => s.name).join(", ") || "(none)"}`);
 
     this.connection = new AcpConnection(options, () => {

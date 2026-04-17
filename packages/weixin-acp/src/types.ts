@@ -13,6 +13,8 @@ export type AcpAgentOptions = {
   promptTimeoutMs?: number;
   /** MCP server names to exclude when loading from ~/.cursor/mcp.json */
   excludeMcpServers?: string[];
+  /** When set, only include these MCP servers (whitelist). Takes priority over excludeMcpServers. */
+  onlyMcpServers?: string[];
   /**
    * MCP-based feedback bridge. When provided, the weixin-feedback MCP server
    * is registered in the project .cursor/mcp.json so that Cursor CLI auto-loads it.

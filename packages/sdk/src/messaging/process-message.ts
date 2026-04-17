@@ -24,7 +24,7 @@ import { handleSlashCommand } from "./slash-commands.js";
 const MEDIA_TEMP_DIR = path.join(os.tmpdir(), "weixin-agent/media");
 
 /** Save a buffer to a temporary file, returning the file path. */
-async function saveMediaBuffer(
+export async function saveMediaBuffer(
   buffer: Buffer,
   contentType?: string,
   subdir?: string,
@@ -73,7 +73,7 @@ function extractTextBody(itemList?: MessageItem[]): string {
 }
 
 /** Find the first downloadable media item from a message. */
-function findMediaItem(itemList?: MessageItem[]): MessageItem | undefined {
+export function findMediaItem(itemList?: MessageItem[]): MessageItem | undefined {
   if (!itemList?.length) return undefined;
 
   const hasDownloadableMedia = (m?: { encrypt_query_param?: string; full_url?: string }) =>

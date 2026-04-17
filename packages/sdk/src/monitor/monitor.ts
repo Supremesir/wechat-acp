@@ -2,10 +2,11 @@ import type { Agent } from "../agent/interface.js";
 import { getUpdates } from "../api/api.js";
 import { WeixinConfigManager } from "../api/config-cache.js";
 import { SESSION_EXPIRED_ERRCODE, pauseSession, getRemainingPauseMs } from "../api/session-guard.js";
-import type { FeedbackBridge } from "../messaging/feedback-bridge.js";
+import type { FeedbackBridge, FeedbackMedia } from "../messaging/feedback-bridge.js";
 import { FollowUpManager } from "../messaging/follow-up.js";
 import { bodyFromItemList } from "../messaging/inbound.js";
-import { processOneMessage } from "../messaging/process-message.js";
+import { downloadMediaFromItem } from "../media/media-download.js";
+import { findMediaItem, processOneMessage, saveMediaBuffer } from "../messaging/process-message.js";
 import { getSyncBufFilePath, loadGetUpdatesBuf, saveGetUpdatesBuf } from "../storage/sync-buf.js";
 import { logger } from "../util/logger.js";
 import { redactBody } from "../util/redact.js";
@@ -143,8 +144,26 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
         // MCP tool call so the agent continues within the same prompt.
         if (feedbackBridge) {
           const text = bodyFromItemList(full.item_list);
-          if (text && feedbackBridge.deliverReply(fromUserId, text)) {
-            log(`[feedback] delivered reply from ${fromUserId}`);
+          let feedbackMedia: FeedbackMedia | undefined;
+          const mediaItem = findMediaItem(full.item_list);
+          if (mediaItem) {
+            try {
+              const downloaded = await downloadMediaFromItem(mediaItem, {
+                cdnBaseUrl, saveMedia: saveMediaBuffer, log, errLog, label: "feedback",
+              });
+              if (downloaded.decryptedPicPath) {
+                feedbackMedia = { filePath: downloaded.decryptedPicPath, mimeType: "image/*" };
+              } else if (downloaded.decryptedVideoPath) {
+                feedbackMedia = { filePath: downloaded.decryptedVideoPath, mimeType: "video/mp4" };
+              } else if (downloaded.decryptedFilePath) {
+                feedbackMedia = { filePath: downloaded.decryptedFilePath, mimeType: downloaded.fileMediaType ?? "application/octet-stream" };
+              }
+            } catch (err) {
+              errLog(`[feedback] media download failed: ${String(err)}`);
+            }
+          }
+          if ((text || feedbackMedia) && feedbackBridge.deliverReply(fromUserId, text, feedbackMedia)) {
+            log(`[feedback] delivered reply from ${fromUserId}${feedbackMedia ? " +media" : ""}`);
             continue;
           }
         }

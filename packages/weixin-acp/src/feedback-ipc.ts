@@ -1,6 +1,6 @@
 import http from "node:http";
 
-import type { FeedbackBridge } from "weixin-agent-sdk";
+import type { FeedbackBridge, FeedbackMedia } from "weixin-agent-sdk";
 
 const FEEDBACK_PORT = parseInt(process.env.WEIXIN_FEEDBACK_PORT || "19826", 10);
 const FEEDBACK_TIMEOUT_MS = parseInt(
@@ -12,8 +12,13 @@ function log(msg: string) {
   console.log(`[feedback-ipc] ${msg}`);
 }
 
+type FeedbackReply = {
+  text: string;
+  media?: FeedbackMedia;
+};
+
 type PendingFeedback = {
-  resolve: (reply: string) => void;
+  resolve: (reply: FeedbackReply) => void;
   timeout: ReturnType<typeof setTimeout>;
 };
 
@@ -25,7 +30,7 @@ type PendingFeedback = {
  *   1. MCP server POSTs to /feedback with `{ summary }`
  *   2. This server sends the summary to WeChat via the configured callback
  *   3. Holds the HTTP connection open until a reply arrives or timeout
- *   4. Returns `{ reply }` to the MCP server
+ *   4. Returns `{ reply, media? }` to the MCP server
  */
 export class FeedbackIpcServer implements FeedbackBridge {
   private server: http.Server | null = null;
@@ -39,6 +44,9 @@ export class FeedbackIpcServer implements FeedbackBridge {
 
   /** Conversations where feedback was used (for skipping double-send). */
   private usedConversations = new Set<string>();
+
+  /** Track users with an active pending wait to prevent duplicate summary sends. */
+  private activeSendUsers = new Set<string>();
 
   /** Callback to send text to a WeChat user (configured by SDK start()). */
   private sendCallback:
@@ -65,7 +73,7 @@ export class FeedbackIpcServer implements FeedbackBridge {
     }
   }
 
-  deliverReply(userId: string, text: string): boolean {
+  deliverReply(userId: string, text: string, media?: FeedbackMedia): boolean {
     const entry = this.pending.get(userId);
     if (!entry) {
       log(`deliverReply: no pending feedback for user=${userId}`);
@@ -73,8 +81,8 @@ export class FeedbackIpcServer implements FeedbackBridge {
     }
     clearTimeout(entry.timeout);
     this.pending.delete(userId);
-    log(`deliverReply: delivered to user=${userId}, text="${text.slice(0, 50)}"`);
-    entry.resolve(text);
+    log(`deliverReply: delivered to user=${userId}, text="${text.slice(0, 50)}"${media ? ` +media(${media.mimeType})` : ""}`);
+    entry.resolve({ text, media });
     return true;
   }
 
@@ -136,8 +144,20 @@ export class FeedbackIpcServer implements FeedbackBridge {
     log(`feedback for user=${userId} (${(summary?.length ?? 0)} chars)`);
     this.usedConversations.add(userId);
 
-    if (this.sendCallback && summary) {
+    // Create the pending wait BEFORE sending the summary to WeChat.
+    // This prevents a race condition where the user replies so fast that
+    // the monitor's deliverReply finds no pending entry.
+    const replyPromise = this.waitForReply(userId);
+
+    // Prevent duplicate sends: if we're already waiting for this user's reply
+    // (happens when Cursor retries the tool call after its internal timeout),
+    // skip sending the summary again but still wait for the reply.
+    const alreadyWaiting = this.activeSendUsers.has(userId);
+    if (alreadyWaiting) {
+      log(`already waiting for reply from user=${userId}, skipping duplicate send`);
+    } else if (this.sendCallback && summary) {
       try {
+        this.activeSendUsers.add(userId);
         const timeoutMins = Math.round(FEEDBACK_TIMEOUT_MS / 60_000);
         const hint = `💬 追问模式已开启，${timeoutMins} 分钟内回复可继续当前对话`;
         const text = `${summary}\n\n---\n> ${hint}`;
@@ -148,29 +168,34 @@ export class FeedbackIpcServer implements FeedbackBridge {
       }
     }
 
-    const reply = await this.waitForReply(userId);
+    const reply = await replyPromise;
+    this.activeSendUsers.delete(userId);
     log(
-      reply
-        ? `got reply from user=${userId}: "${reply.slice(0, 50)}"`
+      reply.text
+        ? `got reply from user=${userId}: "${reply.text.slice(0, 50)}"${reply.media ? " +media" : ""}`
         : `timeout for user=${userId}`,
     );
 
+    const responseBody: Record<string, unknown> = { reply: reply.text };
+    if (reply.media) {
+      responseBody.media = reply.media;
+    }
     res.writeHead(200);
-    res.end(JSON.stringify({ reply }));
+    res.end(JSON.stringify(responseBody));
   }
 
-  private waitForReply(userId: string): Promise<string> {
+  private waitForReply(userId: string): Promise<FeedbackReply> {
     const existing = this.pending.get(userId);
     if (existing) {
       clearTimeout(existing.timeout);
-      existing.resolve("");
+      existing.resolve({ text: "" });
     }
 
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
         this.pending.delete(userId);
         log(`timeout waiting for reply from user=${userId}`);
-        resolve("");
+        resolve({ text: "" });
       }, FEEDBACK_TIMEOUT_MS);
 
       this.pending.set(userId, { resolve, timeout });
@@ -180,9 +205,10 @@ export class FeedbackIpcServer implements FeedbackBridge {
   close(): void {
     for (const [, entry] of this.pending) {
       clearTimeout(entry.timeout);
-      entry.resolve("");
+      entry.resolve({ text: "" });
     }
     this.pending.clear();
+    this.activeSendUsers.clear();
     this.server?.close();
     this.server = null;
   }
