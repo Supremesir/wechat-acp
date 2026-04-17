@@ -1,9 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import type { Agent, ChatRequest, ChatResponse } from "weixin-agent-sdk";
-import type { McpServer, SessionId } from "@agentclientprotocol/sdk";
+import type { SessionId } from "@agentclientprotocol/sdk";
 
 import type { AcpAgentOptions } from "./types.js";
 import { AcpConnection } from "./acp-connection.js";
@@ -15,41 +14,44 @@ function log(msg: string) {
 }
 
 /**
- * Read MCP server configs from ~/.cursor/mcp.json and convert them
- * to the ACP McpServerStdio format.
+ * Write a project-level .cursor/mcp.json that disables certain MCP servers.
+ * Cursor CLI merges project and global configs; project-level `disabled: true`
+ * prevents those MCPs from being loaded.
  */
-function loadUserMcpServers(exclude?: string[]): McpServer[] {
-  const candidates = [
-    path.join(os.homedir(), ".cursor", "mcp.json"),
-    path.join(process.cwd(), ".cursor", "mcp.json"),
-  ];
+function disableMcpServers(cwd: string, names: string[]): void {
+  if (names.length === 0) return;
 
-  const excludeSet = new Set(exclude ?? []);
-  const servers: McpServer[] = [];
-  const seen = new Set<string>();
+  const cursorDir = path.join(cwd, ".cursor");
+  const configPath = path.join(cursorDir, "mcp.json");
 
-  for (const configPath of candidates) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
-      const entries = raw?.mcpServers ?? {};
-      for (const [name, cfg] of Object.entries<Record<string, unknown>>(entries)) {
-        if (seen.has(name) || excludeSet.has(name) || !cfg.command) continue;
-        seen.add(name);
-        servers.push({
-          name,
-          command: String(cfg.command),
-          args: (cfg.args as string[] | undefined) ?? [],
-          env: Object.entries((cfg.env as Record<string, string> | undefined) ?? {}).map(
-            ([k, v]) => ({ name: k, value: String(v) }),
-          ),
-        });
-      }
-    } catch {
-      // Config not found or unreadable — skip
+  let existing: Record<string, unknown> = {};
+  try {
+    const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    existing = raw?.mcpServers ?? {};
+  } catch {
+    // not found or invalid — start fresh
+  }
+
+  let changed = false;
+  for (const name of names) {
+    const cur = existing[name] as Record<string, unknown> | undefined;
+    if (!cur || cur.disabled !== true) {
+      existing[name] = {
+        ...(cur ?? { command: "echo", args: ["disabled"] }),
+        disabled: true,
+      };
+      changed = true;
     }
   }
 
-  return servers;
+  if (changed) {
+    fs.mkdirSync(cursorDir, { recursive: true });
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ mcpServers: existing }, null, 2) + "\n",
+    );
+    log(`wrote .cursor/mcp.json — disabled: ${names.join(", ")}`);
+  }
 }
 
 /**
@@ -60,14 +62,11 @@ export class AcpAgent implements Agent {
   private connection: AcpConnection;
   private sessions = new Map<string, SessionId>();
   private options: AcpAgentOptions;
-  private mcpServers: McpServer[];
 
   constructor(options: AcpAgentOptions) {
     this.options = options;
-    this.mcpServers = loadUserMcpServers(options.excludeMcpServers);
-    if (this.mcpServers.length > 0) {
-      log(`loaded ${this.mcpServers.length} MCP server(s): ${this.mcpServers.map((s) => s.name).join(", ")}`);
-    }
+    const cwd = options.cwd ?? process.cwd();
+    disableMcpServers(cwd, options.excludeMcpServers ?? []);
     this.connection = new AcpConnection(options, () => {
       log("subprocess exited, clearing session cache");
       this.sessions.clear();
@@ -113,7 +112,7 @@ export class AcpAgent implements Agent {
     log(`creating new session for conversation=${conversationId}`);
     const res = await conn.newSession({
       cwd: this.options.cwd ?? process.cwd(),
-      mcpServers: this.mcpServers,
+      mcpServers: [],
     });
     log(`session created: ${res.sessionId}`);
     this.sessions.set(conversationId, res.sessionId);
