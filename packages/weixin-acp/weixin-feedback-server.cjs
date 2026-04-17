@@ -1,0 +1,205 @@
+#!/usr/bin/env node
+"use strict";
+
+/**
+ * MCP server for WeChat interactive feedback.
+ *
+ * Spawned as a subprocess by Cursor CLI. Communicates with the main process
+ * (weixin-acp) via HTTP on localhost. The port is read from the
+ * WEIXIN_FEEDBACK_PORT environment variable.
+ *
+ * Protocol: newline-delimited JSON-RPC over stdio (matching Cursor CLI's
+ * MCP transport).
+ */
+
+const http = require("node:http");
+const readline = require("node:readline");
+
+const FEEDBACK_PORT = parseInt(process.env.WEIXIN_FEEDBACK_PORT || "19826", 10);
+const FEEDBACK_TIMEOUT_MS = parseInt(
+  process.env.WEIXIN_FEEDBACK_TIMEOUT_MS || "600000",
+  10,
+);
+
+function logErr(msg) {
+  process.stderr.write(`[weixin-feedback-mcp] ${msg}\n`);
+}
+
+logErr(`started, port=${FEEDBACK_PORT}, timeout=${FEEDBACK_TIMEOUT_MS}ms`);
+
+function send(obj) {
+  process.stdout.write(JSON.stringify(obj) + "\n");
+}
+
+function sendResult(id, result) {
+  send({ jsonrpc: "2.0", id, result });
+}
+
+function sendError(id, code, message) {
+  send({ jsonrpc: "2.0", id, error: { code, message } });
+}
+
+function postToIpc(urlPath, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port: FEEDBACK_PORT,
+        path: urlPath,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(data),
+        },
+        timeout: FEEDBACK_TIMEOUT_MS + 30_000,
+      },
+      (res) => {
+        let chunks = "";
+        res.on("data", (c) => (chunks += c));
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(chunks));
+          } catch {
+            resolve({ reply: "" });
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy();
+      resolve({ reply: "" });
+    });
+    req.write(data);
+    req.end();
+  });
+}
+
+async function handleToolCall(msg) {
+  const name = msg.params?.name;
+  logErr(`tool_call: name=${name}, id=${msg.id}`);
+
+  if (name !== "interactive_feedback") {
+    logErr(`unknown tool: ${name}`);
+    sendError(msg.id, -32601, "Unknown tool: " + name);
+    return;
+  }
+
+  const summary = msg.params?.arguments?.summary || "";
+  logErr(`interactive_feedback called, summary length=${summary.length}`);
+
+  if (!FEEDBACK_PORT) {
+    logErr("ERROR: WEIXIN_FEEDBACK_PORT not configured");
+    sendResult(msg.id, {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            interactive_feedback: "",
+            error: "WEIXIN_FEEDBACK_PORT not configured",
+          }),
+        },
+      ],
+    });
+    return;
+  }
+
+  try {
+    logErr(`posting to IPC http://127.0.0.1:${FEEDBACK_PORT}/feedback ...`);
+    const result = await postToIpc("/feedback", { summary });
+    logErr(`IPC replied: ${JSON.stringify(result).slice(0, 200)}`);
+    sendResult(msg.id, {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            interactive_feedback: result.reply || "",
+          }),
+        },
+      ],
+    });
+  } catch (err) {
+    logErr(`IPC error: ${err.message || err}`);
+    sendResult(msg.id, {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            interactive_feedback: "",
+            error: String(err.message || err),
+          }),
+        },
+      ],
+    });
+  }
+}
+
+function handleMessage(msg) {
+  if (!msg.method) return;
+  logErr(`recv: method=${msg.method}, id=${msg.id ?? "notification"}`);
+  if (msg.id === undefined || msg.id === null) {
+    return;
+  }
+
+  switch (msg.method) {
+    case "initialize":
+      logErr("handling initialize");
+      sendResult(msg.id, {
+        protocolVersion: "2024-11-05",
+        capabilities: { tools: {} },
+        serverInfo: { name: "weixin-feedback-mcp", version: "1.0.0" },
+      });
+      break;
+
+    case "ping":
+      sendResult(msg.id, {});
+      break;
+
+    case "tools/list":
+      sendResult(msg.id, {
+        tools: [
+          {
+            name: "interactive_feedback",
+            description:
+              "Send your complete output to the WeChat user and wait for their reply. " +
+              "Use this after completing a task to get user feedback for multi-turn conversation. " +
+              "CRITICAL: You MUST paste your ENTIRE raw output into the summary parameter. " +
+              "Do NOT summarize or condense — copy the FULL verbatim text you produced.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                summary: {
+                  type: "string",
+                  description:
+                    "Your ENTIRE raw output verbatim. Copy-paste ALL text you produced " +
+                    "during this task WITHOUT any summarization or condensation. " +
+                    "This text is sent directly to the WeChat user as-is.",
+                },
+              },
+              required: ["summary"],
+            },
+          },
+        ],
+      });
+      break;
+
+    case "tools/call":
+      handleToolCall(msg);
+      break;
+
+    default:
+      sendError(msg.id, -32601, "Method not found: " + msg.method);
+  }
+}
+
+const rl = readline.createInterface({ input: process.stdin });
+rl.on("line", (line) => {
+  if (!line.trim()) return;
+  try {
+    handleMessage(JSON.parse(line));
+  } catch {
+    /* malformed JSON — ignore */
+  }
+});
+rl.on("close", () => process.exit(0));

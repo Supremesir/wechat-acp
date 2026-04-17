@@ -16,6 +16,7 @@
 import { isLoggedIn, login, logout, start } from "weixin-agent-sdk";
 
 import { AcpAgent } from "./src/acp-agent.js";
+import { FeedbackIpcServer } from "./src/feedback-ipc.js";
 
 /** Built-in agent shortcuts */
 const BUILTIN_AGENTS: Record<string, { command: string }> = {
@@ -24,6 +25,16 @@ const BUILTIN_AGENTS: Record<string, { command: string }> = {
 };
 
 const command = process.argv[2];
+
+function extractFlag(flag: string): string | undefined {
+  const idx = process.argv.indexOf(flag);
+  if (idx !== -1 && idx + 1 < process.argv.length) {
+    return process.argv[idx + 1];
+  }
+  return undefined;
+}
+
+const modelId = extractFlag("--model");
 
 async function ensureLoggedIn() {
   if (!isLoggedIn()) {
@@ -38,6 +49,12 @@ async function startAgent(acpCommand: string, acpArgs: string[] = []) {
   process.on("SIGINT", () => { userAborted = true; });
   process.on("SIGTERM", () => { userAborted = true; });
 
+  // Start feedback IPC server for MCP-based multi-turn within one prompt (no extra agent.chat from SDK)
+  const feedbackIpc = new FeedbackIpcServer();
+  const feedbackPort = await feedbackIpc.start();
+  console.log(`[feedback] IPC server on port ${feedbackPort}`);
+
+
   while (!userAborted) {
     await ensureLoggedIn();
 
@@ -45,6 +62,9 @@ async function startAgent(acpCommand: string, acpArgs: string[] = []) {
       command: acpCommand,
       args: acpArgs,
       excludeMcpServers: ["relay-mcp"],
+      feedbackBridge: feedbackIpc,
+      env: { WEIXIN_FEEDBACK_PORT: String(feedbackPort) },
+      model: modelId,
     });
     const ac = new AbortController();
     let sessionExpired = false;
@@ -61,7 +81,7 @@ async function startAgent(acpCommand: string, acpArgs: string[] = []) {
     try {
       await start(agent, {
         abortSignal: ac.signal,
-        enableFollowUp: true,
+        feedbackBridge: feedbackIpc,
         log: (msg) => {
           console.log(msg);
           if (!userAborted && msg.includes("session expired (errcode")) {
@@ -83,6 +103,8 @@ async function startAgent(acpCommand: string, acpArgs: string[] = []) {
     console.log("\n⚠️ 微信会话过期，正在重新登录...\n");
     await login();
   }
+
+  feedbackIpc.close();
 }
 
 async function main() {

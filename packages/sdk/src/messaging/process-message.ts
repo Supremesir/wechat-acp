@@ -14,6 +14,7 @@ import { logger } from "../util/logger.js";
 
 import { setContextToken, bodyFromItemList, isMediaItem } from "./inbound.js";
 import { sendWeixinErrorNotice } from "./error-notice.js";
+import type { FeedbackBridge } from "./feedback-bridge.js";
 import type { FollowUpManager } from "./follow-up.js";
 import { FOLLOW_UP_HINT, FOLLOW_UP_EXPIRED_HINT } from "./follow-up.js";
 import { sendWeixinMediaFile } from "./send-media.js";
@@ -56,6 +57,8 @@ export type ProcessMessageDeps = {
   errLog: (msg: string) => void;
   /** When set, enables the follow-up loop after each agent reply. */
   followUpManager?: FollowUpManager;
+  /** MCP-based feedback bridge (one SDK chat per user message; no followUpManager loop). Takes priority over followUpManager. */
+  feedbackBridge?: FeedbackBridge;
 };
 
 /** Extract raw text from item_list (for slash command detection). */
@@ -252,6 +255,14 @@ export async function processOneMessage(
     while (true) {
       const response = await deps.agent.chat(currentRequest);
 
+      // When MCP feedback bridge handled multi-turn within agent.chat(),
+      // the output was already sent to WeChat by the MCP tool — skip here.
+      if (deps.feedbackBridge?.wasFeedbackUsed(to)) {
+        deps.feedbackBridge.resetFeedbackUsed(to);
+        deps.log(`[feedback] response sent by MCP tool, skipping`);
+        break;
+      }
+
       // --- Send response to WeChat ---
       if (!deps.followUpManager) {
         await sendResponseToWeixin(response, to, contextToken, deps);
@@ -351,5 +362,6 @@ export async function processOneMessage(
     }
     // Ensure follow-up window is closed on error/exit
     deps.followUpManager?.cancel(to);
+    deps.feedbackBridge?.resetFeedbackUsed(to);
   }
 }

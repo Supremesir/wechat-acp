@@ -2,7 +2,9 @@ import type { Agent } from "../agent/interface.js";
 import { getUpdates } from "../api/api.js";
 import { WeixinConfigManager } from "../api/config-cache.js";
 import { SESSION_EXPIRED_ERRCODE, pauseSession, getRemainingPauseMs } from "../api/session-guard.js";
+import type { FeedbackBridge } from "../messaging/feedback-bridge.js";
 import { FollowUpManager } from "../messaging/follow-up.js";
+import { bodyFromItemList } from "../messaging/inbound.js";
 import { processOneMessage } from "../messaging/process-message.js";
 import { getSyncBufFilePath, loadGetUpdatesBuf, saveGetUpdatesBuf } from "../storage/sync-buf.js";
 import { logger } from "../util/logger.js";
@@ -24,6 +26,8 @@ export type MonitorWeixinOpts = {
   log?: (msg: string) => void;
   /** Enable Relay-style follow-up: after each agent reply, wait for user's next message. */
   enableFollowUp?: boolean;
+  /** MCP-based feedback bridge (routes replies into pending MCP tool). Takes priority over enableFollowUp. */
+  feedbackBridge?: FeedbackBridge;
 };
 
 /**
@@ -50,8 +54,11 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
   log(`[weixin] monitor started (${baseUrl}, account=${accountId})`);
   aLog.info(`Monitor started: baseUrl=${baseUrl}`);
 
+  const feedbackBridge = opts.feedbackBridge;
   const followUpManager = opts.enableFollowUp ? new FollowUpManager() : undefined;
-  if (followUpManager) {
+  if (feedbackBridge) {
+    log(`[weixin] MCP feedback bridge enabled (multi-turn within one agent.chat)`);
+  } else if (followUpManager) {
     log(`[weixin] follow-up mode enabled (Relay-style multi-turn)`);
   }
 
@@ -132,8 +139,17 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
 
         const fromUserId = full.from_user_id ?? "";
 
-        // If there's a pending follow-up window for this user, deliver the
-        // message there instead of starting a new processOneMessage cycle.
+        // MCP feedback bridge takes priority: route reply to the pending
+        // MCP tool call so the agent continues within the same prompt.
+        if (feedbackBridge) {
+          const text = bodyFromItemList(full.item_list);
+          if (text && feedbackBridge.deliverReply(fromUserId, text)) {
+            log(`[feedback] delivered reply from ${fromUserId}`);
+            continue;
+          }
+        }
+
+        // SDK-level follow-up (fallback when feedbackBridge is not active).
         if (followUpManager?.tryDeliver(fromUserId, full)) {
           log(`[follow-up] delivered message from ${fromUserId} to pending follow-up`);
           continue;
@@ -151,13 +167,14 @@ export async function monitorWeixinProvider(opts: MonitorWeixinOpts): Promise<vo
           log,
           errLog,
           followUpManager,
+          feedbackBridge,
         };
 
-        if (followUpManager) {
+        if (feedbackBridge || followUpManager) {
           // Fire-and-forget: don't block the poll loop so getUpdates keeps
-          // running and follow-up messages can be delivered via tryDeliver.
+          // running and follow-up/feedback messages can be delivered.
           processOneMessage(full, msgDeps).catch((err) => {
-            errLog(`[follow-up] processOneMessage error: ${String(err)}`);
+            errLog(`[monitor] processOneMessage error: ${String(err)}`);
           });
         } else {
           await processOneMessage(full, msgDeps);

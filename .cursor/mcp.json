@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "relay-mcp": {
+      "command": "echo",
+      "args": [
+        "disabled"
+      ],
+      "disabled": true
+    },
+    "weixin-feedback": {
+      "command": "node",
+      "args": [
+        "C:\\Code\\WorkSpace\\weixin-agent-sdk\\packages\\weixin-acp\\weixin-feedback-server.cjs"
+      ],
+      "env": {
+        "WEIXIN_FEEDBACK_PORT": "19826"
+      },
+      "timeout": 660,
+      "autoApprove": [
+        "interactive_feedback"
+      ]
+    }
+  }
+}

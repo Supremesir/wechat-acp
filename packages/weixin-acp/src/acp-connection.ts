@@ -20,8 +20,19 @@ function describeToolCall(update: {
   title?: string | null;
   kind?: string | null;
   toolCallId?: string;
+  rawInput?: unknown;
 }): string {
-  return update.title ?? update.kind ?? update.toolCallId ?? "tool";
+  const base = update.title ?? update.kind ?? update.toolCallId ?? "tool";
+  // For MCP tool calls, try to extract the actual tool name from rawInput
+  if (base.startsWith("MCP") && update.rawInput && typeof update.rawInput === "object") {
+    const input = update.rawInput as Record<string, unknown>;
+    const serverName = input.server_name ?? input.serverName ?? "";
+    const toolName = input.tool_name ?? input.toolName ?? input.name ?? "";
+    if (serverName || toolName) {
+      return `MCP: ${serverName}${serverName && toolName ? "/" : ""}${toolName}`;
+    }
+  }
+  return base;
 }
 
 /**
@@ -112,14 +123,22 @@ export class AcpConnection {
       sessionUpdate: async (params) => {
         const update = params.update;
         switch (update.sessionUpdate) {
-          case "tool_call":
-            log(`tool_call: ${describeToolCall(update)} (${update.status ?? "started"})`);
-            break;
-          case "tool_call_update":
-            if (update.status) {
-              log(`tool_call_update: ${describeToolCall(update)} → ${update.status}`);
+          case "tool_call": {
+            const desc = describeToolCall(update);
+            log(`tool_call: ${desc} (${update.status ?? "started"}) [id=${update.toolCallId}]`);
+            if (update.rawInput) {
+              const snippet = JSON.stringify(update.rawInput).slice(0, 200);
+              log(`  rawInput: ${snippet}`);
             }
             break;
+          }
+          case "tool_call_update": {
+            if (update.status) {
+              const desc = describeToolCall(update);
+              log(`tool_call_update: ${desc} → ${update.status} [id=${update.toolCallId}]`);
+            }
+            break;
+          }
           case "agent_thought_chunk":
             if (update.content.type === "text") {
               log(`thinking: ${update.content.text.slice(0, 100)}`);

@@ -1,17 +1,40 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-import type { Agent, ChatRequest, ChatResponse } from "weixin-agent-sdk";
-import type { SessionId } from "@agentclientprotocol/sdk";
+import type { Agent, ChatRequest, ChatResponse, FeedbackBridge } from "weixin-agent-sdk";
+import type { McpServer, SessionId } from "@agentclientprotocol/sdk";
 
 import type { AcpAgentOptions } from "./types.js";
 import { AcpConnection } from "./acp-connection.js";
 import { convertRequestToContentBlocks } from "./content-converter.js";
 import { ResponseCollector } from "./response-collector.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 function log(msg: string) {
   console.log(`[acp] ${msg}`);
 }
+
+/**
+ * Injected into every prompt when feedbackBridge is active.
+ * Tells the agent to call interactive_feedback instead of replying directly.
+ */
+const FEEDBACK_SYSTEM_INSTRUCTION = `[SYSTEM] You are communicating with a user through WeChat (not an IDE).
+After completing your response, you MUST call the "interactive_feedback" tool (from weixin-feedback MCP server).
+Pass your ENTIRE response text as the "summary" parameter — do NOT summarize or truncate.
+This tool sends your response to the WeChat user and waits for their reply.
+If the user replies, you will receive their message and can continue the conversation.
+If timeout (empty string returned), end the task normally.
+IMPORTANT: Do NOT call relay_interactive_feedback — it does not exist here. Use interactive_feedback only.
+Keep responses concise — the user reads on a phone screen. Markdown is supported.`;
+
+type RawMcpEntry = {
+  command?: string;
+  args?: string[];
+  disabled?: boolean;
+};
 
 /**
  * Write a project-level .cursor/mcp.json that disables certain MCP servers.
@@ -55,6 +78,37 @@ function disableMcpServers(cwd: string, names: string[]): void {
 }
 
 /**
+ * Build the MCP server list for the ACP session.
+ * Reads the global config and excludes disabled/unwanted servers.
+ * weixin-feedback should already be in the global config (static setup).
+ */
+function buildMcpServerList(excludeNames: Set<string>): McpServer[] {
+  const globalConfigPath = path.join(os.homedir(), ".cursor", "mcp.json");
+  let rawServers: Record<string, RawMcpEntry> = {};
+  try {
+    const data = JSON.parse(fs.readFileSync(globalConfigPath, "utf8"));
+    rawServers = data?.mcpServers ?? {};
+  } catch {
+    // no global config
+  }
+
+  const servers: McpServer[] = [];
+  for (const [name, entry] of Object.entries(rawServers)) {
+    if (excludeNames.has(name)) continue;
+    if (entry.disabled) continue;
+    if (!entry.command) continue;
+    servers.push({
+      name,
+      command: entry.command,
+      args: entry.args ?? [],
+      env: [],
+    });
+  }
+
+  return servers;
+}
+
+/**
  * Agent adapter that bridges ACP (Agent Client Protocol) agents
  * to the weixin-agent-sdk Agent interface.
  */
@@ -62,11 +116,22 @@ export class AcpAgent implements Agent {
   private connection: AcpConnection;
   private sessions = new Map<string, SessionId>();
   private options: AcpAgentOptions;
+  private feedbackBridge?: FeedbackBridge;
+  private mcpServers: McpServer[];
 
   constructor(options: AcpAgentOptions) {
     this.options = options;
+    this.feedbackBridge = options.feedbackBridge;
     const cwd = options.cwd ?? process.cwd();
+
+    // Disable excluded MCPs via project .cursor/mcp.json (prevents MCP process from starting)
     disableMcpServers(cwd, options.excludeMcpServers ?? []);
+
+    // Build the MCP server list from global config, excluding unwanted ones
+    const excludeSet = new Set(options.excludeMcpServers ?? []);
+    this.mcpServers = buildMcpServerList(excludeSet);
+    log(`MCP servers: ${this.mcpServers.map((s) => s.name).join(", ") || "(none)"}`);
+
     this.connection = new AcpConnection(options, () => {
       log("subprocess exited, clearing session cache");
       this.sessions.clear();
@@ -85,9 +150,22 @@ export class AcpAgent implements Agent {
       return { text: "" };
     }
 
+    // When feedback bridge is active, inject instructions so the agent knows
+    // to call interactive_feedback (from weixin-feedback MCP) after responding.
+    // The agent won't know about this tool otherwise — project rules may not
+    // load in ACP subprocess mode.
+    if (this.feedbackBridge) {
+      blocks.unshift({
+        type: "text",
+        text: FEEDBACK_SYSTEM_INSTRUCTION,
+      });
+    }
+
     // Register a collector, send the prompt, then gather the response
     const preview = request.text?.slice(0, 50) || (request.media ? `[${request.media.type}]` : "");
     log(`prompt: "${preview}" (session=${sessionId})`);
+
+    this.feedbackBridge?.setActiveUser(request.conversationId);
 
     const collector = new ResponseCollector();
     this.connection.registerCollector(sessionId, collector);
@@ -95,6 +173,7 @@ export class AcpAgent implements Agent {
       await conn.prompt({ sessionId, prompt: blocks });
     } finally {
       this.connection.unregisterCollector(sessionId);
+      this.feedbackBridge?.clearActiveUser(request.conversationId);
     }
 
     const response = await collector.toResponse();
@@ -112,9 +191,22 @@ export class AcpAgent implements Agent {
     log(`creating new session for conversation=${conversationId}`);
     const res = await conn.newSession({
       cwd: this.options.cwd ?? process.cwd(),
-      mcpServers: [],
+      mcpServers: this.mcpServers,
     });
     log(`session created: ${res.sessionId}`);
+
+    if (this.options.model) {
+      try {
+        await conn.unstable_setSessionModel({
+          sessionId: res.sessionId,
+          modelId: this.options.model,
+        });
+        log(`model set: ${this.options.model}`);
+      } catch (err) {
+        log(`failed to set model: ${err}`);
+      }
+    }
+
     this.sessions.set(conversationId, res.sessionId);
     return res.sessionId;
   }

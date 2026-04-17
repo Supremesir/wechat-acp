@@ -18,6 +18,8 @@ import {
   waitForWeixinLogin,
 } from "./auth/login-qr.js";
 import { downloadRemoteImageToTemp } from "./cdn/upload.js";
+import type { FeedbackBridge } from "./messaging/feedback-bridge.js";
+import { extractFirstFeedbackMedia } from "./messaging/feedback-outbound-media.js";
 import { getContextToken } from "./messaging/inbound.js";
 import { sendWeixinMediaFile } from "./messaging/send-media.js";
 import { filterMarkdown, sendMessageWeixin } from "./messaging/send.js";
@@ -40,8 +42,14 @@ export type StartOptions = {
   abortSignal?: AbortSignal;
   /** Log callback (defaults to console.log). */
   log?: (msg: string) => void;
-  /** Enable Relay-style follow-up: after each agent reply, wait for user's next message. */
+  /** Enable SDK-level follow-up: after each agent reply, wait for user's next message (extra agent.chat per round). */
   enableFollowUp?: boolean;
+  /**
+   * MCP-based feedback bridge: WeChat follow-ups feed the pending MCP tool inside one agent.chat (Cursor billing is separate).
+   * When provided, incoming replies are routed to the pending MCP tool call
+   * instead of starting a new agent cycle.  Takes priority over `enableFollowUp`.
+   */
+  feedbackBridge?: FeedbackBridge;
 };
 
 /**
@@ -254,6 +262,31 @@ export async function start(agent: Agent, opts?: StartOptions): Promise<Bot> {
 
   log(`[weixin] 启动 bot, account=${account.accountId}`);
 
+  if (opts?.feedbackBridge) {
+    const bridge = opts.feedbackBridge;
+    bridge.setSendCallback(async (userId: string, text: string) => {
+      const ct = getContextToken(account.accountId, userId);
+      if (!ct) throw new Error("no context_token for feedback send");
+      const extracted = extractFirstFeedbackMedia(text);
+      if (extracted) {
+        await sendWeixinMediaFile({
+          filePath: extracted.filePath,
+          to: userId,
+          text: filterMarkdown(extracted.displayText),
+          opts: { baseUrl: account.baseUrl, token: account.token, contextToken: ct },
+          cdnBaseUrl: account.cdnBaseUrl,
+        });
+        return;
+      }
+      await sendMessageWeixin({
+        to: userId,
+        text: filterMarkdown(text),
+        opts: { baseUrl: account.baseUrl, token: account.token, contextToken: ct },
+      });
+    });
+    log("[weixin] MCP feedback bridge configured");
+  }
+
   const bot = new Bot({
     accountId: account.accountId,
     baseUrl: account.baseUrl,
@@ -271,6 +304,7 @@ export async function start(agent: Agent, opts?: StartOptions): Promise<Bot> {
     abortSignal: opts?.abortSignal,
     log,
     enableFollowUp: opts?.enableFollowUp,
+    feedbackBridge: opts?.feedbackBridge,
   });
 
   return bot;

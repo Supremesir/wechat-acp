@@ -1,3 +1,5 @@
+import type { FeedbackBridge } from "weixin-agent-sdk";
+
 export type AcpAgentOptions = {
   /** Command to launch the ACP agent, e.g. "npx" */
   command: string;
@@ -11,4 +13,14 @@ export type AcpAgentOptions = {
   promptTimeoutMs?: number;
   /** MCP server names to exclude when loading from ~/.cursor/mcp.json */
   excludeMcpServers?: string[];
+  /**
+   * MCP-based feedback bridge. When provided, the weixin-feedback MCP server
+   * is registered in the project .cursor/mcp.json so that Cursor CLI auto-loads it.
+   */
+  feedbackBridge?: FeedbackBridge;
+  /**
+   * Model ID to use for sessions, e.g. "claude-3.5-sonnet", "gpt-4o".
+   * Uses a non-thinking model to reduce request consumption.
+   */
+  model?: string;
 };
