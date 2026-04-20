@@ -83,12 +83,6 @@ function disableMcpServers(cwd: string, names: string[]): void {
     }
   }
 
-  const fbEntry = existing["wechat-feedback"] as Record<string, unknown> | undefined;
-  if (fbEntry && fbEntry.disabled !== true) {
-    existing["wechat-feedback"] = { ...fbEntry, disabled: true };
-    changed = true;
-  }
-
   if (changed) {
     fs.mkdirSync(cursorDir, { recursive: true });
     fs.writeFileSync(
@@ -195,9 +189,6 @@ export class AcpAgent implements Agent {
     }
     disableMcpServers(cwd, disableList);
 
-    const excludeSet = new Set(disableList);
-    const onlySet = options.onlyMcpServers ? new Set(options.onlyMcpServers) : undefined;
-
     if (options.feedbackBridge) {
       ensureGlobalMcpEntry("wechat-feedback", {
         command: "node",
@@ -211,6 +202,10 @@ export class AcpAgent implements Agent {
       });
     }
 
+    // Exclude wechat-feedback from ACP-provided server list so Cursor CLI
+    // discovers it from ~/.cursor/mcp.json directly (with timeout:600).
+    const excludeSet = new Set([...disableList, "wechat-feedback"]);
+    const onlySet = options.onlyMcpServers ? new Set(options.onlyMcpServers) : undefined;
     this.mcpServers = buildMcpServerList(excludeSet, onlySet);
     log(`MCP servers: ${this.mcpServers.map((s) => s.name).join(", ") || "(none)"}`);
 
