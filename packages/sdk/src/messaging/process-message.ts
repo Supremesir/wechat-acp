@@ -256,11 +256,16 @@ export async function processOneMessage(
       const response = await deps.agent.chat(currentRequest);
 
       // When MCP feedback bridge handled multi-turn within agent.chat(),
-      // the output was already sent to WeChat by the MCP tool — skip here.
+      // the output was already sent to WeChat by the MCP tool.
+      // Only skip if agent returned no meaningful final content.
       if (deps.feedbackBridge?.wasFeedbackUsed(to)) {
         deps.feedbackBridge.resetFeedbackUsed(to);
-        deps.log(`[feedback] response sent by MCP tool, skipping`);
-        break;
+        const hasContent = !!(response.text?.trim() || response.media);
+        if (!hasContent) {
+          deps.log(`[feedback] response sent by MCP tool, skipping empty final response`);
+          break;
+        }
+        deps.log(`[feedback] MCP tool was used but agent returned additional content — sending`);
       }
 
       // --- Send response to WeChat ---
