@@ -45,7 +45,7 @@ alwaysApply: true
 
 ## 使用截图 MCP 的典型流程
 
-1. 调用 `list_displays` 查看可用显示器
-2. 调用 `capture_screenshot` 截图（可指定 `monitor` 编号和 `outputPath` 保存路径）
+1. 调用 `list_windows` 查看所有窗口，或 `list_displays` 查看显示器
+2. 调用 `screenshot_window` 按窗口标题截图，或 `screenshot_screen` 全屏截图（指定 `save_dir` 保存路径）
 3. 在回复中使用 `[WECHAT_IMAGE:保存路径]` 标记
 4. 桥接层自动提取图片并发送到微信
