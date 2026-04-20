@@ -203,9 +203,8 @@ export class AcpAgent implements Agent {
       });
     }
 
-    // Exclude wechat-feedback from ACP-provided server list so Cursor CLI
-    // discovers it from ~/.cursor/mcp.json directly (with timeout:600).
-    const excludeSet = new Set([...disableList, "wechat-feedback"]);
+    // Pass wechat-feedback through ACP (agent acp mode doesn't read global mcp.json)
+    const excludeSet = new Set(disableList);
     const onlySet = options.onlyMcpServers ? new Set(options.onlyMcpServers) : undefined;
     this.mcpServers = buildMcpServerList(excludeSet, onlySet);
     log(`MCP servers: ${this.mcpServers.map((s) => s.name).join(", ") || "(none)"}`);
