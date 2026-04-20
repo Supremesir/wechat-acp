@@ -32,6 +32,15 @@ HANDLING THE RESULT:
 - If the result is empty string "", the user chose not to reply — end the task normally.
 - The tool may take several minutes to return while waiting for the user. This is normal — do NOT treat slow return as an error.
 
+SENDING IMAGES/MEDIA:
+When you need to send an image, screenshot, or file to the user, include this marker in your summary text:
+  [WECHAT_IMAGE:/absolute/path/to/image.png]
+  [WECHAT_VIDEO:/absolute/path/to/video.mp4]
+  [WECHAT_FILE:/absolute/path/to/file.pdf]
+The bridge will automatically extract the file and send it to WeChat. The marker is removed from the displayed text.
+The path MUST be an absolute local path to an existing file. Use the screenshot MCP to capture screenshots first, then reference the saved file path.
+Example: After calling capture_screenshot with outputPath "C:\\Users\\Fang\\screenshot.png", include [WECHAT_IMAGE:C:\\Users\\Fang\\screenshot.png] in your summary.
+
 CRITICAL RULES:
 - Do NOT call relay_interactive_feedback — it does not exist here. Use interactive_feedback only.
 - Keep responses concise — the user reads on a phone screen. Markdown is supported.`;

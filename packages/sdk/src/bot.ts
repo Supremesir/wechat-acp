@@ -269,14 +269,18 @@ export async function start(agent: Agent, opts?: StartOptions): Promise<Bot> {
       if (!ct) throw new Error("no context_token for feedback send");
       const extracted = extractFirstFeedbackMedia(text);
       if (extracted) {
-        await sendWeixinMediaFile({
-          filePath: extracted.filePath,
-          to: userId,
-          text: filterMarkdown(extracted.displayText),
-          opts: { baseUrl: account.baseUrl, token: account.token, contextToken: ct },
-          cdnBaseUrl: account.cdnBaseUrl,
-        });
-        return;
+        try {
+          await sendWeixinMediaFile({
+            filePath: extracted.filePath,
+            to: userId,
+            text: filterMarkdown(extracted.displayText),
+            opts: { baseUrl: account.baseUrl, token: account.token, contextToken: ct },
+            cdnBaseUrl: account.cdnBaseUrl,
+          });
+          return;
+        } catch (mediaErr) {
+          log(`[weixin] media send failed (${extracted.filePath}), falling back to text: ${mediaErr}`);
+        }
       }
       await sendMessageWeixin({
         to: userId,

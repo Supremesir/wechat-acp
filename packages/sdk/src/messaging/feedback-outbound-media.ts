@@ -1,8 +1,17 @@
+import fs from "node:fs";
 import path from "node:path";
 
 function toAbsolute(p: string): string {
   const t = p.trim();
   return path.isAbsolute(t) ? t : path.resolve(t);
+}
+
+function fileExists(p: string): boolean {
+  try {
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -18,8 +27,11 @@ export function extractFirstFeedbackMedia(text: string): {
   let m = text.match(marker);
   if (m) {
     const rawPath = m[2].trim();
-    const displayText = text.replace(/\[(?:WECHAT|WEIXIN)_(?:IMAGE|VIDEO|FILE):[^\]]+\]\s*/g, "").trim();
-    return { filePath: toAbsolute(rawPath), displayText };
+    const resolved = toAbsolute(rawPath);
+    if (fileExists(resolved)) {
+      const displayText = text.replace(/\[(?:WECHAT|WEIXIN)_(?:IMAGE|VIDEO|FILE):[^\]]+\]\s*/g, "").trim();
+      return { filePath: resolved, displayText };
+    }
   }
 
   // 2) Markdown image ![alt](path) — local paths only
@@ -30,11 +42,14 @@ export function extractFirstFeedbackMedia(text: string): {
     if (rawPath.startsWith("http://") || rawPath.startsWith("https://")) {
       return null;
     }
-    const escaped = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const displayText = text
-      .replace(new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)\\s*`, "g"), "")
-      .trim();
-    return { filePath: toAbsolute(rawPath), displayText };
+    const resolved = toAbsolute(rawPath);
+    if (fileExists(resolved)) {
+      const escaped = rawPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const displayText = text
+        .replace(new RegExp(`!\\[[^\\]]*\\]\\(${escaped}\\)\\s*`, "g"), "")
+        .trim();
+      return { filePath: resolved, displayText };
+    }
   }
 
   return null;

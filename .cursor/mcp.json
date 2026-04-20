@@ -2,12 +2,30 @@
   "mcpServers": {
     "relay-mcp": {
       "command": "echo",
-      "args": ["disabled"],
+      "args": [
+        "disabled"
+      ],
       "disabled": true
     },
     "wechat-feedback": {
       "command": "echo",
-      "args": ["disabled"],
+      "args": [
+        "disabled"
+      ],
+      "disabled": true
+    },
+    "weixin-feedback": {
+      "command": "echo",
+      "args": [
+        "disabled"
+      ],
+      "disabled": true
+    },
+    "wps-feedback": {
+      "command": "echo",
+      "args": [
+        "disabled"
+      ],
       "disabled": true
     }
   }
