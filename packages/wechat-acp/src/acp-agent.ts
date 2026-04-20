@@ -14,7 +14,8 @@ import { ResponseCollector } from "./response-collector.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function log(msg: string) {
-  console.log(`[acp] ${msg}`);
+  const ts = new Date().toISOString().slice(11, 23);
+  console.log(`[acp ${ts}] ${msg}`);
 }
 
 /**

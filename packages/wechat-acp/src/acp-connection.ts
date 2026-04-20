@@ -13,7 +13,8 @@ import type { AcpAgentOptions } from "./types.js";
 import { ResponseCollector } from "./response-collector.js";
 
 function log(msg: string) {
-  console.log(`[acp] ${msg}`);
+  const ts = new Date().toISOString().slice(11, 23);
+  console.log(`[acp ${ts}] ${msg}`);
 }
 
 function describeToolCall(update: {

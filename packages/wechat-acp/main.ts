@@ -83,7 +83,8 @@ async function startAgent(acpCommand: string, acpArgs: string[] = []) {
         abortSignal: ac.signal,
         feedbackBridge: feedbackIpc,
         log: (msg) => {
-          console.log(msg);
+          const ts = new Date().toISOString().slice(11, 23);
+          console.log(`[${ts}] ${msg}`);
           if (!userAborted && msg.includes("session expired (errcode")) {
             sessionExpired = true;
             ac.abort();

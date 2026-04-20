@@ -14,7 +14,8 @@ const POLL_INTERVAL_MS = parseInt(
 );
 
 function log(msg: string) {
-  console.log(`[feedback-ipc] ${msg}`);
+  const ts = new Date().toISOString().slice(11, 23);
+  console.log(`[feedback-ipc ${ts}] ${msg}`);
 }
 
 type FeedbackReply = {

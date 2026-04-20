@@ -78,7 +78,8 @@ function stripMediaMarkers(text: string, extractedPath: string): string {
 }
 
 function log(msg: string) {
-  console.log(`[acp-collector] ${msg}`);
+  const ts = new Date().toISOString().slice(11, 23);
+  console.log(`[acp-collector ${ts}] ${msg}`);
 }
 
 /**
