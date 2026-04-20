@@ -4,7 +4,7 @@
 
 > **致谢：** 本项目基于 [weixin-agent-sdk](https://github.com/wong2/weixin-agent-sdk) 改造而来，感谢 [@wong2](https://github.com/wong2) 的出色工作。底层通信协议基于 [@tencent-weixin/openclaw-weixin](https://npmx.dev/package/@tencent-weixin/openclaw-weixin)（微信 OpenClaw 通道插件），感谢腾讯微信团队提供的原始 SDK 与协议实现。本项目非微信官方项目，仅供学习交流使用。
 >
-> **姊妹项目：** 如需将 AI Agent 接入 WPS 数字员工平台，请查看 [woa-acp](https://github.com/user/woa-acp)。
+> **姊妹项目：** 如需将 AI Agent 接入 WPS 数字员工平台，请查看 [woa-acp](https://github.com/Supremesir/woa-acp)。
 
 ## 相比上游的增强
 
