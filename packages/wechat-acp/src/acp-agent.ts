@@ -39,7 +39,8 @@ When you need to send an image, screenshot, or file to the user, include this ma
   [WECHAT_FILE:/absolute/path/to/file.pdf]
 The bridge will automatically extract the file and send it to WeChat. The marker is removed from the displayed text.
 The path MUST be an absolute local path to an existing file. Use the screenshot MCP to capture screenshots first, then reference the saved file path.
-Example: After calling capture_screenshot with outputPath "C:\\Users\\Fang\\screenshot.png", include [WECHAT_IMAGE:C:\\Users\\Fang\\screenshot.png] in your summary.
+You can use screenshot_window (by window title) or screenshot_screen (full screen) with save_dir parameter.
+Example: After calling screenshot_screen with save_dir "C:\\Users\\Fang", include [WECHAT_IMAGE:C:\\Users\\Fang\\screenshot.png] in your summary.
 
 CRITICAL RULES:
 - Do NOT call relay_interactive_feedback — it does not exist here. Use interactive_feedback only.
