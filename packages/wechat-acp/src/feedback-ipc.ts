@@ -7,6 +7,11 @@ const FEEDBACK_TIMEOUT_MS = parseInt(
   process.env.WECHAT_FEEDBACK_TIMEOUT_MS || "600000",
   10,
 );
+/** Per-HTTP-request poll interval. Must be shorter than Cursor CLI's 60s MCP timeout. */
+const POLL_INTERVAL_MS = parseInt(
+  process.env.WECHAT_FEEDBACK_POLL_MS || "50000",
+  10,
+);
 
 function log(msg: string) {
   console.log(`[feedback-ipc] ${msg}`);
@@ -18,37 +23,30 @@ type FeedbackReply = {
 };
 
 type PendingFeedback = {
-  resolve: (reply: FeedbackReply) => void;
+  subscribers: Array<(reply: FeedbackReply) => void>;
   timeout: ReturnType<typeof setTimeout>;
+  createdAt: number;
+  /** Buffered reply for late piggyback (user replied between poll cycles). */
+  bufferedReply?: FeedbackReply;
 };
 
 /**
  * HTTP server on localhost that bridges the MCP `interactive_feedback` tool
  * with the WeChat SDK.
  *
- * Flow:
- *   1. MCP server POSTs to /feedback with `{ summary }`
- *   2. This server sends the summary to WeChat via the configured callback
- *   3. Holds the HTTP connection open until a reply arrives or timeout
- *   4. Returns `{ reply, media? }` to the MCP server
+ * Short-polling: each HTTP request races a POLL_INTERVAL_MS timer against
+ * the actual user reply. If the timer wins, an empty reply is returned so
+ * the MCP server can return __WAITING__ before Cursor CLI's 60s hard timeout.
+ * The underlying pending survives for FEEDBACK_TIMEOUT_MS.
  */
 export class FeedbackIpcServer implements FeedbackBridge {
   private server: http.Server | null = null;
   private port = 0;
 
-  /** Currently active userId being processed by agent.chat(). */
   private activeUserId: string | null = null;
-
-  /** Pending feedback waits, keyed by userId. */
   private pending = new Map<string, PendingFeedback>();
-
-  /** Conversations where feedback was used (for skipping double-send). */
   private usedConversations = new Set<string>();
 
-  /** Track users with an active pending wait to prevent duplicate summary sends. */
-  private activeSendUsers = new Set<string>();
-
-  /** Callback to send text to a WeChat user (configured by SDK start()). */
   private sendCallback:
     | ((userId: string, text: string) => Promise<void>)
     | null = null;
@@ -80,9 +78,17 @@ export class FeedbackIpcServer implements FeedbackBridge {
       return false;
     }
     clearTimeout(entry.timeout);
-    this.pending.delete(userId);
-    log(`deliverReply: delivered to user=${userId}, text="${text.slice(0, 50)}"${media ? ` +media(${media.mimeType})` : ""}`);
-    entry.resolve({ text, media });
+    log(`deliverReply: delivered to user=${userId} (${entry.subscribers.length} subscriber(s)), text="${text.slice(0, 50)}"${media ? ` +media(${media.mimeType})` : ""}`);
+    const reply: FeedbackReply = { text, media };
+    for (const sub of entry.subscribers) {
+      sub(reply);
+    }
+    entry.subscribers = [];
+    entry.bufferedReply = reply;
+    setTimeout(() => {
+      const cur = this.pending.get(userId);
+      if (cur === entry) this.pending.delete(userId);
+    }, 120_000);
     return true;
   }
 
@@ -141,23 +147,64 @@ export class FeedbackIpcServer implements FeedbackBridge {
       return;
     }
 
-    log(`feedback for user=${userId} (${(summary?.length ?? 0)} chars)`);
     this.usedConversations.add(userId);
 
-    // Create the pending wait BEFORE sending the summary to WeChat.
-    // This prevents a race condition where the user replies so fast that
-    // the monitor's deliverReply finds no pending entry.
-    const replyPromise = this.waitForReply(userId);
+    const existing = this.pending.get(userId);
+    if (existing) {
+      if (existing.bufferedReply) {
+        const reply = existing.bufferedReply;
+        this.pending.delete(userId);
+        log(`returning buffered reply for user=${userId}: "${reply.text.slice(0, 50)}"`);
+        const responseBody: Record<string, unknown> = { reply: reply.text };
+        if (reply.media) responseBody.media = reply.media;
+        res.writeHead(200);
+        res.end(JSON.stringify(responseBody));
+        return;
+      }
 
-    // Prevent duplicate sends: if we're already waiting for this user's reply
-    // (happens when Cursor retries the tool call after its internal timeout),
-    // skip sending the summary again but still wait for the reply.
-    const alreadyWaiting = this.activeSendUsers.has(userId);
-    if (alreadyWaiting) {
-      log(`already waiting for reply from user=${userId}, skipping duplicate send`);
-    } else if (this.sendCallback && summary) {
+      const age = Math.round((Date.now() - existing.createdAt) / 1000);
+      log(`piggyback on existing pending for user=${userId} (age=${age}s, subs=${existing.subscribers.length}→${existing.subscribers.length + 1})`);
+
+      const reply = await this.raceWithPoll(
+        new Promise<FeedbackReply>((resolve) => {
+          existing.subscribers.push(resolve);
+        }),
+      );
+
+      log(
+        reply.text
+          ? `got reply (piggyback) user=${userId}: "${reply.text.slice(0, 50)}"`
+          : `poll timeout (piggyback) user=${userId}`,
+      );
+
+      const responseBody: Record<string, unknown> = { reply: reply.text };
+      if (reply.media) responseBody.media = reply.media;
+      res.writeHead(200);
+      res.end(JSON.stringify(responseBody));
+      return;
+    }
+
+    log(`feedback for user=${userId} (${(summary?.length ?? 0)} chars)`);
+
+    const replyPromise = new Promise<FeedbackReply>((resolve) => {
+      const timeout = setTimeout(() => {
+        const entry = this.pending.get(userId);
+        if (entry && !entry.bufferedReply) {
+          this.pending.delete(userId);
+          log(`full timeout for user=${userId} (${entry.subscribers.length} subscriber(s))`);
+          for (const sub of entry.subscribers) sub({ text: "" });
+        }
+      }, FEEDBACK_TIMEOUT_MS);
+
+      this.pending.set(userId, {
+        subscribers: [resolve],
+        timeout,
+        createdAt: Date.now(),
+      });
+    });
+
+    if (this.sendCallback && summary) {
       try {
-        this.activeSendUsers.add(userId);
         const timeoutMins = Math.round(FEEDBACK_TIMEOUT_MS / 60_000);
         const hint = `💬 追问模式已开启，${timeoutMins} 分钟内回复可继续当前对话`;
         const text = `${summary}\n\n---\n> ${hint}`;
@@ -168,47 +215,39 @@ export class FeedbackIpcServer implements FeedbackBridge {
       }
     }
 
-    const reply = await replyPromise;
-    this.activeSendUsers.delete(userId);
+    const reply = await this.raceWithPoll(replyPromise);
     log(
       reply.text
         ? `got reply from user=${userId}: "${reply.text.slice(0, 50)}"${reply.media ? " +media" : ""}`
-        : `timeout for user=${userId}`,
+        : `poll timeout for user=${userId}`,
     );
 
     const responseBody: Record<string, unknown> = { reply: reply.text };
-    if (reply.media) {
-      responseBody.media = reply.media;
-    }
+    if (reply.media) responseBody.media = reply.media;
     res.writeHead(200);
     res.end(JSON.stringify(responseBody));
   }
 
-  private waitForReply(userId: string): Promise<FeedbackReply> {
-    const existing = this.pending.get(userId);
-    if (existing) {
-      clearTimeout(existing.timeout);
-      existing.resolve({ text: "" });
-    }
-
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        this.pending.delete(userId);
-        log(`timeout waiting for reply from user=${userId}`);
-        resolve({ text: "" });
-      }, FEEDBACK_TIMEOUT_MS);
-
-      this.pending.set(userId, { resolve, timeout });
-    });
+  /**
+   * Race a reply promise against POLL_INTERVAL_MS.  If the poll timer wins,
+   * return an empty reply so the MCP server can return __WAITING__ before
+   * Cursor CLI's 60s timeout.  The underlying pending survives.
+   */
+  private raceWithPoll(replyP: Promise<FeedbackReply>): Promise<FeedbackReply> {
+    return Promise.race([
+      replyP,
+      new Promise<FeedbackReply>((resolve) =>
+        setTimeout(() => resolve({ text: "" }), POLL_INTERVAL_MS),
+      ),
+    ]);
   }
 
   close(): void {
     for (const [, entry] of this.pending) {
       clearTimeout(entry.timeout);
-      entry.resolve({ text: "" });
+      for (const sub of entry.subscribers) sub({ text: "" });
     }
     this.pending.clear();
-    this.activeSendUsers.clear();
     this.server?.close();
     this.server = null;
   }
