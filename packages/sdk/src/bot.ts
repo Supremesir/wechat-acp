@@ -19,7 +19,7 @@ import {
 } from "./auth/login-qr.js";
 import { downloadRemoteImageToTemp } from "./cdn/upload.js";
 import type { FeedbackBridge } from "./messaging/feedback-bridge.js";
-import { extractFirstFeedbackMedia } from "./messaging/feedback-outbound-media.js";
+import { extractAllFeedbackMedia } from "./messaging/feedback-outbound-media.js";
 import { getContextToken } from "./messaging/inbound.js";
 import { sendWeixinMediaFile } from "./messaging/send-media.js";
 import { filterMarkdown, sendMessageWeixin } from "./messaging/send.js";
@@ -207,6 +207,21 @@ export class Bot {
         opts: apiOpts,
         cdnBaseUrl: this._cdnBaseUrl,
       });
+      if (response.extraMedia) {
+        for (const extra of response.extraMedia) {
+          const extraUrl = extra.url;
+          const extraPath = extraUrl.startsWith("http://") || extraUrl.startsWith("https://")
+            ? await downloadRemoteImageToTemp(extraUrl, path.join(MEDIA_TEMP_DIR, "outbound"))
+            : path.isAbsolute(extraUrl) ? extraUrl : path.resolve(extraUrl);
+          await sendWeixinMediaFile({
+            filePath: extraPath,
+            to: this._userId,
+            text: "",
+            opts: apiOpts,
+            cdnBaseUrl: this._cdnBaseUrl,
+          });
+        }
+      }
       return;
     }
 
@@ -267,25 +282,32 @@ export async function start(agent: Agent, opts?: StartOptions): Promise<Bot> {
     bridge.setSendCallback(async (userId: string, text: string) => {
       const ct = getContextToken(account.accountId, userId);
       if (!ct) throw new Error("no context_token for feedback send");
-      const extracted = extractFirstFeedbackMedia(text);
-      if (extracted) {
-        try {
-          await sendWeixinMediaFile({
-            filePath: extracted.filePath,
-            to: userId,
-            text: filterMarkdown(extracted.displayText),
-            opts: { baseUrl: account.baseUrl, token: account.token, contextToken: ct },
-            cdnBaseUrl: account.cdnBaseUrl,
-          });
-          return;
-        } catch (mediaErr) {
-          log(`[weixin] media send failed (${extracted.filePath}), falling back to text: ${mediaErr}`);
+      const apiOpts = { baseUrl: account.baseUrl, token: account.token, contextToken: ct };
+      const allMedia = extractAllFeedbackMedia(text);
+      if (allMedia.length > 0) {
+        const displayText = filterMarkdown(allMedia[0].displayText);
+        let firstSent = false;
+        for (const media of allMedia) {
+          try {
+            await sendWeixinMediaFile({
+              filePath: media.filePath,
+              to: userId,
+              text: firstSent ? "" : displayText,
+              opts: apiOpts,
+              cdnBaseUrl: account.cdnBaseUrl,
+            });
+            firstSent = true;
+          } catch (mediaErr) {
+            log(`[weixin] media send failed (${media.filePath}): ${mediaErr}`);
+          }
         }
+        if (firstSent) return;
+        log("[weixin] all media failed, falling back to text");
       }
       await sendMessageWeixin({
         to: userId,
         text: filterMarkdown(text),
-        opts: { baseUrl: account.baseUrl, token: account.token, contextToken: ct },
+        opts: apiOpts,
       });
     });
     log("[weixin] MCP feedback bridge configured");

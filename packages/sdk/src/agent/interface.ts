@@ -30,15 +30,19 @@ export interface ChatRequest {
   };
 }
 
+export type ChatResponseMedia = {
+  type: "image" | "video" | "file";
+  /** Local file path or HTTPS URL. */
+  url: string;
+  /** Filename hint (for file attachments). */
+  fileName?: string;
+};
+
 export interface ChatResponse {
   /** Reply text (may contain markdown — will be converted to plain text before sending). */
   text?: string;
-  /** Reply media file. */
-  media?: {
-    type: "image" | "video" | "file";
-    /** Local file path or HTTPS URL. */
-    url: string;
-    /** Filename hint (for file attachments). */
-    fileName?: string;
-  };
+  /** Primary media file (backward compatible). */
+  media?: ChatResponseMedia;
+  /** Additional media files (sent as separate messages after the primary). */
+  extraMedia?: ChatResponseMedia[];
 }

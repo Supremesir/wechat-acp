@@ -29,6 +29,8 @@ type PendingFeedback = {
   createdAt: number;
   /** Buffered reply for late piggyback (user replied between poll cycles). */
   bufferedReply?: FeedbackReply;
+  /** Last summary sent to WeChat, used to detect new content in piggyback calls. */
+  lastSentSummary?: string;
 };
 
 /**
@@ -173,6 +175,16 @@ export class FeedbackIpcServer implements FeedbackBridge {
       const age = Math.round((Date.now() - existing.createdAt) / 1000);
       log(`piggyback on existing pending for user=${userId} (age=${age}s, subs=${existing.subscribers.length}→${existing.subscribers.length + 1})`);
 
+      if (this.sendCallback && summary && summary !== existing.lastSentSummary) {
+        try {
+          await this.sendCallback(userId, summary);
+          existing.lastSentSummary = summary;
+          log(`sent new summary (piggyback) to WeChat user=${userId}`);
+        } catch (err) {
+          log(`failed to send piggyback summary: ${err}`);
+        }
+      }
+
       const reply = await this.raceWithPoll(
         new Promise<FeedbackReply>((resolve) => {
           existing.subscribers.push(resolve);
@@ -217,6 +229,8 @@ export class FeedbackIpcServer implements FeedbackBridge {
         const hint = `💬 追问模式已开启，${timeoutMins} 分钟内回复可继续当前对话`;
         const text = `${summary}\n\n---\n> ${hint}`;
         await this.sendCallback(userId, text);
+        const entry = this.pending.get(userId);
+        if (entry) entry.lastSentSummary = summary;
         log(`sent summary to WeChat user=${userId}`);
       } catch (err) {
         log(`failed to send summary: ${err}`);

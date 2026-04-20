@@ -108,6 +108,13 @@ export function findMediaItem(itemList?: MessageItem[]): MessageItem | undefined
   return refItem?.ref_msg?.message_item ?? undefined;
 }
 
+async function resolveMediaPath(url: string): Promise<string> {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return downloadRemoteImageToTemp(url, path.join(MEDIA_TEMP_DIR, "outbound"));
+  }
+  return path.isAbsolute(url) ? url : path.resolve(url);
+}
+
 /** Send agent response (text and/or media) to a WeChat user. */
 async function sendResponseToWeixin(
   response: import("../agent/interface.js").ChatResponse,
@@ -118,30 +125,39 @@ async function sendResponseToWeixin(
 ): Promise<void> {
   const appendFooter = (text: string) =>
     footer ? `${text}\n\n---\n> ${footer}` : text;
+  const apiOpts = { baseUrl: deps.baseUrl, token: deps.token, contextToken };
 
   if (response.media) {
-    let filePath: string;
-    const mediaUrl = response.media.url;
-    if (mediaUrl.startsWith("http://") || mediaUrl.startsWith("https://")) {
-      filePath = await downloadRemoteImageToTemp(
-        mediaUrl,
-        path.join(MEDIA_TEMP_DIR, "outbound"),
-      );
-    } else {
-      filePath = path.isAbsolute(mediaUrl) ? mediaUrl : path.resolve(mediaUrl);
-    }
+    const filePath = await resolveMediaPath(response.media.url);
     await sendWeixinMediaFile({
       filePath,
       to,
       text: response.text ? appendFooter(filterMarkdown(response.text)) : (footer ?? ""),
-      opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+      opts: apiOpts,
       cdnBaseUrl: deps.cdnBaseUrl,
     });
+
+    if (response.extraMedia) {
+      for (const extra of response.extraMedia) {
+        try {
+          const extraPath = await resolveMediaPath(extra.url);
+          await sendWeixinMediaFile({
+            filePath: extraPath,
+            to,
+            text: "",
+            opts: apiOpts,
+            cdnBaseUrl: deps.cdnBaseUrl,
+          });
+        } catch (err) {
+          deps.log(`[send] extra media failed (${extra.url}): ${err}`);
+        }
+      }
+    }
   } else if (response.text) {
     await sendMessageWeixin({
       to,
       text: appendFooter(filterMarkdown(response.text)),
-      opts: { baseUrl: deps.baseUrl, token: deps.token, contextToken },
+      opts: apiOpts,
     });
   }
 }

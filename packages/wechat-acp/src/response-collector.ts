@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import type { ChatResponse } from "wechat-sdk";
+import type { ChatResponse, ChatResponseMedia } from "wechat-sdk";
 import type { SessionNotification } from "@agentclientprotocol/sdk";
 
 const ACP_MEDIA_OUT_DIR = path.join(os.tmpdir(), "wechat-acp/media/out");
@@ -159,15 +159,21 @@ export class ResponseCollector {
     // --- Priority 3: extract media paths from text ---
     if (text) {
       const candidates = extractMediaPaths(text);
+      const accessibleMedia: ChatResponseMedia[] = [];
       for (const candidate of candidates) {
         try {
           await fs.access(candidate.path);
-          response.media = { type: candidate.type, url: candidate.path };
+          accessibleMedia.push({ type: candidate.type, url: candidate.path });
           text = stripMediaMarkers(text, candidate.path);
           log(`extracted media from text: ${candidate.path} (${candidate.type})`);
-          break;
         } catch {
           log(`candidate path not accessible: ${candidate.path}`);
+        }
+      }
+      if (accessibleMedia.length > 0) {
+        response.media = accessibleMedia[0];
+        if (accessibleMedia.length > 1) {
+          response.extraMedia = accessibleMedia.slice(1);
         }
       }
     }
