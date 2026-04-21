@@ -310,7 +310,11 @@ AI：（收到图片 + 文字）
 |------|------|
 | **一次 chat 多轮对话** | Agent 在一次 `agent.chat()` 内通过 MCP 工具实现多轮，无需多次调用 |
 | **图片支持** | 用户在追问中发送图片，Monitor 自动下载解密，通过 IPC 传递给 MCP，Agent 收到 base64 图片 |
-| **防重复发送** | IPC Server 追踪 `activeSendUsers`，Cursor 内部超时重试时不会重复发送摘要 |
+| **多图片发送** | `extractAllFeedbackMedia` 提取回复中的所有图片路径，循环发送；`ResponseCollector` 也收集所有可访问的媒体到 `extraMedia` |
+| **Short-Polling** | 每个 HTTP 请求在 50s 后返回空回复（`__WAITING__`），防止 Cursor CLI 的 60s MCP 超时；底层 pending 存活 10 分钟 |
+| **Piggyback 机制** | Agent 因 `__WAITING__` 重试调用时，搭便车到现有 pending 上等待用户回复，不会创建重复的等待 |
+| **Piggyback 媒体重发** | 仅当新 summary 包含之前未发送的图片路径时才重发，纯文字变化不触发（避免 agent 循环改写文字导致重复消息） |
+| **Stale 清理** | `clearActiveUser` 立即清除 pending entry 和所有 subscribers，防止旧状态吞掉新消息 |
 | **Race Condition 防护** | 先创建 pending entry 再发送摘要，防止用户快速回复时回复丢失 |
 | **Relay MCP 自动排除** | ACP 模式下自动排除 `relay-mcp`，避免与 `wechat-feedback` 冲突 |
 | **MCP 自动注册** | `ensureGlobalMcpEntry` 启动时自动将 `wechat-feedback` 注册到 `~/.cursor/mcp.json`，含 timeout hook |
